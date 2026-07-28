@@ -2,7 +2,7 @@ import { Agent } from '@mastra/core/agent';
 import { askUserTool } from '@mastra/core/tools';
 import { Memory } from '@mastra/memory';
 
-import { LOCALIZATION_MODEL } from '../config';
+import { AI_MODEL } from '../config';
 import { localizeDocumentWorkflow } from '../workflows/localize-document';
 import { documentTools } from '../tools/document-tools';
 import { glossaryTools } from '../tools/glossary-tools';
@@ -40,7 +40,7 @@ Glossaries may be supplied as plain text, markdown, JSON, or CSV, and are conver
 The translator and editor subagents are available for one-off questions, such as checking how a single term or sentence should read. Use the workflow for anything document-sized.
 
 When a run finishes, report the output path, how many parts were produced, the final glossary size, and any issues the editor recorded. Mention the report file for the full detail.`,
-  model: LOCALIZATION_MODEL,
+  model: AI_MODEL,
   agents: { translatorAgent, editorAgent },
   workflows: { localizeDocumentWorkflow },
   tools: {

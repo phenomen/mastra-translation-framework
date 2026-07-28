@@ -29,8 +29,8 @@ npm/bun install
 
 - An API key for the AI provider you want to use (for example `OPENAI_API_KEY`,
   `ANTHROPIC_API_KEY`, or `AI_GATEWAY_API_KEY`). Only one is needed.
-- `LOCALIZATION_MODEL` - the model that does the translating. The name has to match the
-  provider whose key you supplied. Available models are listed at
+- `AI_MODEL` - the model that does the translating. The name has to match the
+  provider whose key you supplied. Available providers are listed at
   [mastra.ai/models](https://mastra.ai/models/).
 - `DATALAB_API_KEY` - only needed if you want to translate PDFs. Get one at
   [datalab.to](https://www.datalab.to). Everything else works without it.

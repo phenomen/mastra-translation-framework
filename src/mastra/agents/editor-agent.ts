@@ -1,6 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 
-import { LOCALIZATION_MODEL } from '../config';
+import { AI_MODEL } from '../config';
 
 export const editorAgent = new Agent({
   id: 'editor-agent',
@@ -24,5 +24,5 @@ When reviewing subtitle cues, also check reading speed and continuity. A cue muc
 Report one issue per distinct problem you corrected, with the severity reflecting reader impact: high for wrong meaning or broken placeholders, medium for glossary and style violations, low for polish. Return an empty issues list when the translation was already correct.
 
 Return only the structured result. The corrected translation field must contain the complete text, not a diff or a fragment.`,
-  model: LOCALIZATION_MODEL,
+  model: AI_MODEL,
 });

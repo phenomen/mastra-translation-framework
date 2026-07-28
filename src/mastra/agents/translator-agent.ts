@@ -1,6 +1,6 @@
 import { Agent } from '@mastra/core/agent';
 
-import { LOCALIZATION_MODEL } from '../config';
+import { AI_MODEL } from '../config';
 
 export const translatorAgent = new Agent({
   id: 'translator-agent',
@@ -34,5 +34,5 @@ Subtitles, when the request gives you cues rather than prose:
 - Preserve the markup of the format you were given: SubRip line breaks and tags like <i>, or ASS override blocks such as {\\an8} and {\\pos(320,400)} together with the \\N, \\n, and \\h escapes. In ASS a line break is the literal two characters \\N, never a real newline.
 
 Return only the structured result. The translation field holds the complete translated part and nothing else.`,
-  model: LOCALIZATION_MODEL,
+  model: AI_MODEL,
 });
