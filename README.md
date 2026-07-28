@@ -109,14 +109,15 @@ optional, but it makes a big difference on long documents.
 
 You can write it as CSV, JSON, Markdown, or a plain text. All of these are understood:
 
-**CSV** (Recommended)
+**CSV**
+
+**Recommended**. You can export Google Sheets or Excel spreadsheet into CSV directly.
 
 ```csv
 source,target,notes
 Code Geass,Код Гиасс,
 Lelouch vi Britannia,Лелуш Ви Британия,male
 Kallen Kōzuki,Каллен Кодзуки,female
-
 ```
 
 **Markdown**
@@ -185,7 +186,7 @@ Use these for quick questions. For anything document-sized, use the Localization
 
 ## Costs
 
-A full lozalization of 250-page PDF using `gemini-3.6-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
+A full localization of 250-page PDF using `gemini-3.6-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
 
 > Datalab OCR provides $10-20 free credits a month, so you really only have to pay for your AI provider.
 
