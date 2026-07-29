@@ -44,7 +44,7 @@ npm/bun run dev
 Open the address it prints (usually <http://localhost:4111>) in your browser.
 
 > [!NOTE]
-> For more advanced setup (server deployment, API) see Mastra docs.
+> For advanced setup (server deployment, API, framework integration) see [Mastra docs](https://mastra.ai/docs).
 
 ## Your Documents
 
@@ -119,14 +119,14 @@ Lelouch vi Britannia,Лелуш Ви Британия,male
 Kallen Kōzuki,Каллен Кодзуки,female
 ```
 
-**Markdown**
+**MD / TXT**
 
-Any reasonable separator and format should be fine.
+Any reasonable separator (`: = ->`) and format should be fine. Just keep it consistent.
 
 ```
 Code Geass: Код Гиасс
 Lelouch vi Britannia = Лелуш Ви Британия (male)
-Kallen Kōzuk -> Каллен Кодзуки | female
+Kallen Kōzuki -> Каллен Кодзуки | female
 ```
 
 **JSON**
@@ -181,11 +181,11 @@ Not everything needs a full localization run. Two more Agents are available:
 - **Translator Agent** - translate a phrase or check how a term should read.
 - **Editor Agent** - review a translation you already have.
 
-Use these for quick questions. For anything document-sized, use the Localization Agent or the workflow so you get the glossary and the review pass.
+Use these for quick questions. For anything document-sized, use the **Localization Agent** or the workflow so you get the glossary and the review pass.
 
 ## Costs
 
-A full localization of 250-page PDF using `gemini-3.6-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
+A full translation of 250-page PDF using `gemini-3.6-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
 
 > [!NOTE]
 > Datalab OCR provides $10-20 free credits a month, so you really only have to pay for your AI provider.
