@@ -16,11 +16,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "dependencies": {
-    "@mastra/core": "^1.53.0",
-    "@mastra/duckdb": "^1.5.1",
-    "@mastra/libsql": "^1.17.1",
-    "@mastra/memory": "^1.23.1",
-    "@mastra/observability": "^1.16.2",
+    "@mastra/core": "^1.54.0",
+    "@mastra/duckdb": "^1.5.2",
+    "@mastra/libsql": "^1.18.0",
+    "@mastra/memory": "^1.24.0",
+    "@mastra/observability": "^1.16.3",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^6.2.108",
@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "mastra": "^1.20.2",
+    "mastra": "^1.20.3",
     "oxfmt": "^0.61.0",
     "typescript": "6.0.3"
   }

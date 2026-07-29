@@ -43,6 +43,7 @@ npm/bun run dev
 
 Open the address it prints (usually <http://localhost:4111>) in your browser.
 
+> [!NOTE]
 > For more advanced setup (server deployment, API) see Mastra docs.
 
 ## Your Documents
@@ -58,7 +59,8 @@ can use subfolders to keep projects apart, for example
 `workspace/game/rulebook.pdf`. When you tell the app which file to use, give the path
 without the workspace part, so `game/rulebook.pdf`.
 
-The app can only see files inside this folder, and it will never touch anything outside it.
+> [!WARNING]
+> The app can only see files inside this folder, and it will never touch anything outside it.
 
 ## Translating a Document
 
@@ -67,8 +69,7 @@ want, for example:
 
 > Translate game/rulebook.pdf into Russian. Use game/glossary.csv and the style guide in game/style.md
 
-The agent will ask for anything it still needs. It then
-starts the run and reports progress as it converts, translates, and reviews each part.
+The agent will ask for anything it still needs. It then starts the run and reports progress as it converts, translates, and reviews each part.
 
 ### Direct Workflow
 
@@ -86,8 +87,6 @@ If you prefer filling in a form over chat agent, open Workflows -> **localizeDoc
 - `styleGuide` - short instructions typed directly, instead of or in addition to a file
 - `sourceLanguage` - only if you want to override automatic detection
 - `outputPath` - only if you want the result somewhere specific
-
-Long documents take a while. A PDF is passing through OCR, converted, translated, and then reviewed part by part. Progress messages tell you which part is being worked on.
 
 ## Subtitles
 
@@ -188,6 +187,7 @@ Use these for quick questions. For anything document-sized, use the Localization
 
 A full localization of 250-page PDF using `gemini-3.6-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
 
+> [!NOTE]
 > Datalab OCR provides $10-20 free credits a month, so you really only have to pay for your AI provider.
 
 A subtitle file for a single anime episode is < $0.3

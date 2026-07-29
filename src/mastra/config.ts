@@ -1,4 +1,10 @@
-export const AI_MODEL = process.env.AI_MODEL;
+const aiModel = process.env.AI_MODEL;
+
+if (!aiModel) {
+  throw new Error('AI_MODEL environment variable is required');
+}
+
+export const AI_MODEL = aiModel;
 
 export const DEFAULT_MAX_PART_CHARS = 12_000;
 

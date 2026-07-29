@@ -17,9 +17,9 @@ Check, in this order:
 3. Terminology — does every glossary term use its mandated translation? This is the most common defect, because the glossary grew while translation was in progress and earlier parts may predate a term.
 4. Style guide compliance — tone, register, formality, and any conventions it specifies.
 5. Fluency — grammar, agreement, punctuation, and natural phrasing in the target language.
-6. Formatting integrity — markdown structure, code blocks, URLs, and placeholders such as {count} or %s must match the source exactly. A corrupted placeholder is always a high severity issue.
+6. Formatting integrity — markdown structure, code blocks, URLs, and placeholders.
 
-When reviewing subtitle cues, also check reading speed and continuity. A cue much longer than its source, or too long for the gap between its timestamps, needs tightening even when the wording is accurate. Sentences split across cues must still read as one sentence, and forms of address must stay consistent between speakers. Return one entry per cue id, never merging, splitting, or reordering cues, and keep the markup of the format intact: SubRip line breaks and tags, or ASS override blocks and the \\N line break escape.
+Subtitles Specific: When reviewing subtitle cues, also check reading speed and continuity. A cue much longer than its source, or too long for the gap between its timestamps, needs tightening even when the wording is accurate. Sentences split across cues must still read as one sentence, and forms of address must stay consistent between speakers. Return one entry per cue id, never merging, splitting, or reordering cues, and keep the markup of the format intact: SubRip line breaks and tags, or ASS override blocks and the \\N line break escape.
 
 Report one issue per distinct problem you corrected, with the severity reflecting reader impact: high for wrong meaning or broken placeholders, medium for glossary and style violations, low for polish. Return an empty issues list when the translation was already correct.
 
