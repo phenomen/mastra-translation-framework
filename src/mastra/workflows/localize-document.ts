@@ -31,6 +31,7 @@ import { chunkDocument } from '../lib/chunking';
 import {
   defaultOutputFileName,
   detectDocumentKind,
+  isOfficeKind,
   isSubtitleKind,
   outputFormatForKind,
   stripMarkdown,
@@ -59,6 +60,7 @@ import {
 } from '../lib/workspace-paths';
 import { convertPdfToMarkdown } from '../tools/datalab-ocr-tool';
 import { readGlossaryFile, writeGlossaryFile } from '../tools/glossary-tools';
+import { convertOfficeToMarkdown } from '../tools/office-tools';
 import { planPdfParts, splitPdfByRanges } from '../tools/pdf-tools';
 
 const documentKindSchema = z.enum([
@@ -68,6 +70,9 @@ const documentKindSchema = z.enum([
   'text',
   'srt',
   'ass',
+  'docx',
+  'rtf',
+  'odt',
 ]);
 const outputFormatSchema = z.enum(['markdown', 'text', 'json', 'srt', 'ass']);
 
@@ -144,7 +149,9 @@ const reviewStageSchema = partsStageSchema.extend({
 const workflowInputSchema = z.object({
   sourcePath: z
     .string()
-    .describe('Path to the document (.md, .pdf, .txt, .json, .srt, .ass)'),
+    .describe(
+      'Path to the document (.md, .pdf, .txt, .json, .srt, .ass, .docx, .rtf, .odt)',
+    ),
   glossaryPath: z
     .string()
     .describe('Path to glossary (.md, .txt, .json, .csv)'),
@@ -392,6 +399,74 @@ const chunkTextPartsStep = createStep({
   },
 });
 
+/**
+ * Office documents become markdown once via officeparser, then follow the same
+ * heading-based chunking as native markdown. The converted markdown is cached
+ * so a retry does not re-parse the binary.
+ */
+const prepareOfficePartsStep = createStep({
+  id: 'prepare-office-parts',
+  description:
+    'Convert a DOCX, RTF, or ODT document to markdown, then split on heading boundaries.',
+  inputSchema: runContextSchema,
+  outputSchema: partsStageSchema,
+  execute: async ({ inputData: run, writer }) => {
+    if (!isOfficeKind(run.kind)) {
+      throw new Error(
+        `prepare-office-parts received unexpected kind "${run.kind}".`,
+      );
+    }
+
+    const markdownPath = path.posix.join(run.runDir, 'source.md');
+    let markdown: string;
+
+    if (await workspaceFileExists(markdownPath)) {
+      markdown = await readWorkspaceText(markdownPath);
+    } else {
+      await writer?.write(
+        `Converting ${path.basename(run.sourcePath)} to markdown\n`,
+      );
+      markdown = await convertOfficeToMarkdown(
+        await readWorkspaceBytes(run.sourcePath),
+        run.kind,
+      );
+      await writeWorkspaceFile(markdownPath, markdown);
+    }
+
+    const chunks = chunkDocument(markdown, run.maxPartChars);
+
+    if (chunks.length === 0) {
+      throw new Error(
+        `Document "${run.sourcePath}" has no translatable content after conversion.`,
+      );
+    }
+
+    const parts: SourcePart[] = [];
+
+    for (const chunk of chunks) {
+      await writeWorkspaceFile(
+        path.posix.join(
+          run.runDir,
+          'parts',
+          `part-${padIndex(chunk.index)}.md`,
+        ),
+        chunk.content,
+      );
+      parts.push({
+        index: chunk.index,
+        ...(chunk.title ? { title: chunk.title } : {}),
+        content: chunk.content,
+      });
+    }
+
+    return {
+      run,
+      partSource: chunks.length > 1 ? 'office-headings' : 'office-single-part',
+      parts,
+    };
+  },
+});
+
 const flattenJsonPartsStep = createStep({
   id: 'flatten-json-parts',
   description:
@@ -470,6 +545,7 @@ const selectPartsStageStep = createStep({
     'Forward the output of whichever part-extraction branch ran to the translation step.',
   inputSchema: z.object({
     'prepare-pdf-parts': partsStageSchema.optional(),
+    'prepare-office-parts': partsStageSchema.optional(),
     'flatten-json-parts': partsStageSchema.optional(),
     'parse-subtitle-parts': partsStageSchema.optional(),
     'chunk-text-parts': partsStageSchema.optional(),
@@ -479,6 +555,7 @@ const selectPartsStageStep = createStep({
     // Only the branch that ran contributes a key.
     const stage =
       inputData['prepare-pdf-parts'] ??
+      inputData['prepare-office-parts'] ??
       inputData['flatten-json-parts'] ??
       inputData['parse-subtitle-parts'] ??
       inputData['chunk-text-parts'];
@@ -839,13 +916,20 @@ const assembleOutputStep = createStep({
 export const localizeDocumentWorkflow = createWorkflow({
   id: 'localizeDocumentWorkflow',
   description:
-    'Localize a plain text, markdown, PDF, JSON, or subtitle (SRT/ASS) document into a target language using a terminology glossary, then review the result for correctness and consistency.',
+    'Localize a plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, or subtitle (SRT/ASS) document into a target language using a terminology glossary, then review the result for correctness and consistency.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,
 })
   .then(prepareRunStep)
   .branch([
     [async ({ inputData }) => inputData.kind === 'pdf', preparePdfPartsStep],
+    [
+      async ({ inputData }) =>
+        inputData.kind === 'docx' ||
+        inputData.kind === 'rtf' ||
+        inputData.kind === 'odt',
+      prepareOfficePartsStep,
+    ],
     [async ({ inputData }) => inputData.kind === 'json', flattenJsonPartsStep],
     [
       async ({ inputData }) =>

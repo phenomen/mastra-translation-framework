@@ -9,6 +9,9 @@ It is meant for documents where consistency matters: documentation, subtitles, r
 | Input      | Output     |
 | ---------- | ---------- |
 | PDF        | Markdown   |
+| DOCX       | Markdown   |
+| RTF        | Markdown   |
+| ODT        | Markdown   |
 | Markdown   | Markdown   |
 | Plain text | Plain text |
 | JSON       | JSON       |
@@ -162,14 +165,6 @@ localization/<run-id>/
   translated/             the first-pass translation of each piece
   reviewed/               each piece after review
 ```
-
-The finished translation is the file named after your document and the target language.
-`report.json` is worth a look: it lists how the document was split and every problem the
-reviewer noticed, with a severity, so you know which spots deserve a human read.
-
-JSON and subtitle runs skip the `parts/`, `translated/`, and `reviewed/` folders, because
-their parts are batches of strings or cues rather than pieces of prose. `report.json` still
-records how many went into each batch.
 
 The intermediate folders are kept on purpose. If a run fails halfway through, for example
 because the network dropped, starting it again reuses the work that already succeeded instead of paying for it twice.

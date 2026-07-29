@@ -22,6 +22,7 @@
     "@mastra/libsql": "^1.18.0",
     "@mastra/memory": "^1.24.0",
     "@mastra/observability": "^1.16.3",
+    "officeparser": "^7.5.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^6.2.108",

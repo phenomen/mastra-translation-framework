@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-import { detectDocumentKind } from '../lib/document-kind';
+import { detectDocumentKind, isOfficeKind } from '../lib/document-kind';
 import {
   readWorkspaceBytes,
   readWorkspaceText,
@@ -11,24 +11,34 @@ import {
 export const readDocumentTool = createTool({
   id: 'read_document',
   description:
-    'Read a document from the workspace and report its kind. Text, markdown, JSON, and subtitle documents return their content; PDFs return only metadata because they must go through the PDF tools.',
+    'Read a document from the workspace and report its kind. Text, markdown, JSON, and subtitle documents return their content; PDFs and office documents (DOCX, RTF, ODT) return only metadata because they must go through their conversion tools.',
   inputSchema: z.object({
     documentPath: z
       .string()
       .describe(
-        'Workspace-relative path to the document (.txt, .md, .json, .srt, .ass, or .pdf).',
+        'Workspace-relative path to the document (.txt, .md, .json, .srt, .ass, .pdf, .docx, .rtf, .odt).',
       ),
   }),
   outputSchema: z.object({
     documentPath: z.string(),
-    kind: z.enum(['pdf', 'json', 'markdown', 'text', 'srt', 'ass']),
+    kind: z.enum([
+      'pdf',
+      'json',
+      'markdown',
+      'text',
+      'srt',
+      'ass',
+      'docx',
+      'rtf',
+      'odt',
+    ]),
     byteLength: z.number(),
     content: z.string().optional(),
   }),
   execute: async ({ documentPath }) => {
     const kind = detectDocumentKind(documentPath);
 
-    if (kind === 'pdf') {
+    if (kind === 'pdf' || isOfficeKind(kind)) {
       const bytes = await readWorkspaceBytes(documentPath);
       return { documentPath, kind, byteLength: bytes.byteLength };
     }

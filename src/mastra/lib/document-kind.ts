@@ -1,6 +1,15 @@
 import path from 'node:path';
 
-export type DocumentKind = 'pdf' | 'json' | 'markdown' | 'text' | 'srt' | 'ass';
+export type DocumentKind =
+  | 'pdf'
+  | 'json'
+  | 'markdown'
+  | 'text'
+  | 'srt'
+  | 'ass'
+  | 'docx'
+  | 'rtf'
+  | 'odt';
 
 export type OutputFormat = 'markdown' | 'text' | 'json' | 'srt' | 'ass';
 
@@ -12,6 +21,15 @@ export function isSubtitleKind(kind: DocumentKind): kind is SubtitleKind {
   return kind === 'srt' || kind === 'ass';
 }
 
+/** Office documents converted to markdown via officeparser before translation. */
+export const OFFICE_KINDS = ['docx', 'rtf', 'odt'] as const;
+
+export type OfficeKind = (typeof OFFICE_KINDS)[number];
+
+export function isOfficeKind(kind: DocumentKind): kind is OfficeKind {
+  return kind === 'docx' || kind === 'rtf' || kind === 'odt';
+}
+
 export function detectDocumentKind(filename: string): DocumentKind {
   const extension = path.extname(filename).toLowerCase();
 
@@ -21,6 +39,9 @@ export function detectDocumentKind(filename: string): DocumentKind {
   // SSA is the older revision of the same container; the dialogue lines that
   // get translated are laid out identically.
   if (extension === '.ass' || extension === '.ssa') return 'ass';
+  if (extension === '.docx') return 'docx';
+  if (extension === '.rtf') return 'rtf';
+  if (extension === '.odt') return 'odt';
   if (extension === '.md' || extension === '.markdown' || extension === '.mdx')
     return 'markdown';
   return 'text';
@@ -34,6 +55,9 @@ const FORMAT_BY_KIND: Record<DocumentKind, OutputFormat> = {
   json: 'json',
   srt: 'srt',
   ass: 'ass',
+  docx: 'markdown',
+  rtf: 'markdown',
+  odt: 'markdown',
 };
 
 export function outputFormatForKind(kind: DocumentKind): OutputFormat {

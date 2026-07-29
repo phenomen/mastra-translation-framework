@@ -6,6 +6,7 @@ import { AI_MODEL } from '../config';
 import { ocrTools } from '../tools/datalab-ocr-tool';
 import { documentTools } from '../tools/document-tools';
 import { glossaryTools } from '../tools/glossary-tools';
+import { officeTools } from '../tools/office-tools';
 import { pdfTools } from '../tools/pdf-tools';
 import { subtitleTools } from '../tools/subtitle-tools';
 import { localizeDocumentWorkflow } from '../workflows/localize-document';
@@ -31,7 +32,9 @@ Optional:
 
 If the target language is missing, ask for it. Do not guess. Also ask whether a glossary or style guide should be used, since both materially change the result, but proceed without them if the user has none.
 
-Supported inputs are plain text, markdown, PDF, JSON, and subtitles. The output format is fixed by the input: PDF and markdown produce markdown, plain text produces plain text, JSON produces JSON, SRT produces SRT, and ASS produces ASS. There is nothing to choose or ask about. JSON is treated as an i18n resource bundle: keys and structure are preserved and only string values are translated.
+Supported inputs are plain text, markdown, PDF, office documents (DOCX, RTF, ODT), JSON, and subtitles. The output format is fixed by the input: PDF, markdown, DOCX, RTF, and ODT produce markdown, plain text produces plain text, JSON produces JSON, SRT produces SRT, and ASS produces ASS. There is nothing to choose or ask about. JSON is treated as an i18n resource bundle: keys and structure are preserved and only string values are translated.
+
+Office documents (Word .docx, Rich Text .rtf, and OpenDocument Text .odt) are converted to markdown locally before translation. Use convert_office_to_markdown when you want to inspect the extracted markdown before committing to a run. Never rewrite an office file by hand with write_document.
 
 Subtitles are SubRip (.srt) and Advanced SubStation Alpha (.ass or .ssa). Only the dialogue text is translated; timings, cue numbering, styles, script headers, and positioning stay exactly as they were, so the result stays in sync with the video. Use inspect_subtitles when you want to confirm a file parses and how many cues it holds before committing to a run, and read_subtitle_cues to look at specific cues. Never rewrite a subtitle file by hand with write_document, since that risks breaking its timings.
 
@@ -50,6 +53,7 @@ When a run finishes, report the output path, how many parts were produced, the f
     ...subtitleTools,
     ...pdfTools,
     ...ocrTools,
+    ...officeTools,
   },
   memory: new Memory({
     options: {

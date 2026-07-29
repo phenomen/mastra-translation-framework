@@ -15,6 +15,7 @@ import { translatorAgent } from './agents/translator-agent';
 import { ocrTools } from './tools/datalab-ocr-tool';
 import { documentTools } from './tools/document-tools';
 import { glossaryTools } from './tools/glossary-tools';
+import { officeTools } from './tools/office-tools';
 import { pdfTools } from './tools/pdf-tools';
 import { localizeDocumentWorkflow } from './workflows/localize-document';
 import { workspace } from './workspace';
@@ -28,6 +29,7 @@ export const mastra = new Mastra({
     ...documentTools,
     ...pdfTools,
     ...ocrTools,
+    ...officeTools,
   },
   storage: new MastraCompositeStore({
     id: 'composite-storage',
