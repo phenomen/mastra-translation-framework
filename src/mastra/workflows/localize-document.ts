@@ -4,12 +4,6 @@ import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 
 import {
-  DEFAULT_MAX_PAGES_PER_PART,
-  DEFAULT_MAX_PART_CHARS,
-  DEFAULT_MIN_PAGES_PER_PART,
-  LOCALIZATION_RUNS_DIR,
-} from '../config';
-import {
   buildJsonReviewPrompt,
   buildJsonTranslationPrompt,
   buildSubtitleReviewPrompt,
@@ -27,6 +21,12 @@ import {
   translationSchema,
   type LocalizationIssue,
 } from '../agents/schemas';
+import {
+  DEFAULT_MAX_PAGES_PER_PART,
+  DEFAULT_MAX_PART_CHARS,
+  DEFAULT_MIN_PAGES_PER_PART,
+  LOCALIZATION_RUNS_DIR,
+} from '../config';
 import { chunkDocument } from '../lib/chunking';
 import {
   defaultOutputFileName,
@@ -57,8 +57,8 @@ import {
   workspaceFileExists,
   writeWorkspaceFile,
 } from '../lib/workspace-paths';
-import { readGlossaryFile, writeGlossaryFile } from '../tools/glossary-tools';
 import { convertPdfToMarkdown } from '../tools/datalab-ocr-tool';
+import { readGlossaryFile, writeGlossaryFile } from '../tools/glossary-tools';
 import { planPdfParts, splitPdfByRanges } from '../tools/pdf-tools';
 
 const documentKindSchema = z.enum([

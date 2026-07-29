@@ -1,20 +1,21 @@
 {
   "name": "mastra-translation-framework",
   "version": "1.0.0",
-  "description": "A Mastra-based workflow for document translation.",
-  "main": "index.js",
   "private": true,
+  "description": "A Mastra-based workflow for document translation.",
+  "keywords": [],
+  "license": "Apache-2.0",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
   "scripts": {
     "dev": "mastra dev",
     "build": "mastra build",
     "start": "mastra start",
-    "fmt": "oxfmt \"**/*.ts\" \"**/*.js\"",
-    "fmt:check": "oxfmt --check \"**/*.ts\" \"**/*.js\""
+    "format": "oxfmt",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
   },
-  "keywords": [],
-  "author": "",
-  "license": "Apache-2.0",
-  "type": "module",
   "dependencies": {
     "@mastra/core": "^1.54.0",
     "@mastra/duckdb": "^1.5.2",
@@ -30,6 +31,7 @@
     "@types/node": "^26.1.2",
     "mastra": "^1.20.3",
     "oxfmt": "^0.61.0",
-    "typescript": "6.0.3"
+    "oxlint": "^1.76.0",
+    "typescript": "7.0.2"
   }
 }

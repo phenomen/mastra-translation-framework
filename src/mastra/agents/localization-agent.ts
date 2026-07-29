@@ -3,12 +3,12 @@ import { askUserTool } from '@mastra/core/tools';
 import { Memory } from '@mastra/memory';
 
 import { AI_MODEL } from '../config';
-import { localizeDocumentWorkflow } from '../workflows/localize-document';
+import { ocrTools } from '../tools/datalab-ocr-tool';
 import { documentTools } from '../tools/document-tools';
 import { glossaryTools } from '../tools/glossary-tools';
-import { ocrTools } from '../tools/datalab-ocr-tool';
 import { pdfTools } from '../tools/pdf-tools';
 import { subtitleTools } from '../tools/subtitle-tools';
+import { localizeDocumentWorkflow } from '../workflows/localize-document';
 import { editorAgent } from './editor-agent';
 import { translatorAgent } from './translator-agent';
 

@@ -1,7 +1,7 @@
 import { Mastra } from '@mastra/core/mastra';
-import { LibSQLStore } from '@mastra/libsql';
-import { DuckDBStore } from '@mastra/duckdb';
 import { MastraCompositeStore } from '@mastra/core/storage';
+import { DuckDBStore } from '@mastra/duckdb';
+import { LibSQLStore } from '@mastra/libsql';
 import {
   MastraStorageExporter,
   MastraPlatformExporter,
@@ -12,11 +12,10 @@ import {
 import { editorAgent } from './agents/editor-agent';
 import { localizationAgent } from './agents/localization-agent';
 import { translatorAgent } from './agents/translator-agent';
-import { documentTools } from './tools/document-tools';
 import { ocrTools } from './tools/datalab-ocr-tool';
+import { documentTools } from './tools/document-tools';
 import { glossaryTools } from './tools/glossary-tools';
 import { pdfTools } from './tools/pdf-tools';
-
 import { localizeDocumentWorkflow } from './workflows/localize-document';
 import { workspace } from './workspace';
 

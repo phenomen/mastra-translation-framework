@@ -4,5 +4,8 @@
   "semi": true,
   "tabWidth": 2,
   "printWidth": 80,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "quoteProps": "consistent",
+  "sortImports": true,
+  "ignorePatterns": ["node_modules", ".mastra", "dist"]
 }
