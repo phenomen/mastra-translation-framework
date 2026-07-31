@@ -1,23 +1,23 @@
-import { Agent } from "@mastra/core/agent";
-import { askUserTool } from "@mastra/core/tools";
-import { Memory } from "@mastra/memory";
+import { Agent } from '@mastra/core/agent';
+import { askUserTool } from '@mastra/core/tools';
+import { Memory } from '@mastra/memory';
 
-import { AI_MODEL } from "../config";
-import { ocrTools } from "../tools/datalab-ocr-tool";
-import { documentTools } from "../tools/document-tools";
-import { glossaryTools } from "../tools/glossary-tools";
-import { officeTools } from "../tools/office-tools";
-import { pdfTools } from "../tools/pdf-tools";
-import { subtitleTools } from "../tools/subtitle-tools";
-import { localizeDocumentWorkflow } from "../workflows/localize-document";
-import { editorAgent } from "./editor-agent";
-import { translatorAgent } from "./translator-agent";
+import { AI_MODEL } from '../config';
+import { ocrTools } from '../tools/datalab-ocr-tool';
+import { documentTools } from '../tools/document-tools';
+import { glossaryTools } from '../tools/glossary-tools';
+import { officeTools } from '../tools/office-tools';
+import { pdfTools } from '../tools/pdf-tools';
+import { subtitleTools } from '../tools/subtitle-tools';
+import { localizeDocumentWorkflow } from '../workflows/localize-document';
+import { editorAgent } from './editor-agent';
+import { translatorAgent } from './translator-agent';
 
 export const localizationAgent = new Agent({
-  id: "localization-agent",
-  name: "Localization Agent",
+  id: 'localization-agent',
+  name: 'Localization Agent',
   description:
-    "Localizes whole documents end to end using a terminology glossary, then reviews the result for correctness and consistency.",
+    'Localizes whole documents end to end using a terminology glossary, then reviews the result for correctness and consistency.',
   instructions: `You localize documents from start to finish. Documents live under the workspace directory, and every path you use is relative to it.
 
 For any complete document, run the localizeDocumentWorkflow rather than translating in the conversation. It splits the document into parts, translates them in order while growing a shared glossary, reviews the result against that final glossary, and writes the output plus a report. Translating in chat instead loses the glossary and the review pass.

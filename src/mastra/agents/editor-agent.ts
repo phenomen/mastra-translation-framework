@@ -1,12 +1,12 @@
-import { Agent } from "@mastra/core/agent";
+import { Agent } from '@mastra/core/agent';
 
-import { AI_MODEL } from "../config";
+import { AI_MODEL } from '../config';
 
 export const editorAgent = new Agent({
-  id: "editor-agent",
-  name: "Editor Agent",
+  id: 'editor-agent',
+  name: 'Editor Agent',
   description:
-    "Reviews a completed translation against the source, the final glossary, and the style guide, correcting errors and reporting what changed.",
+    'Reviews a completed translation against the source, the final glossary, and the style guide, correcting errors and reporting what changed.',
   instructions: `You are a bilingual localization editor. You review a translation that another translator has already produced, against the source text, the final terminology glossary, and the style guide.
 
 You are editing, not retranslating. Make the smallest changes that fix real problems, and leave acceptable wording alone even if you would have phrased it differently.
