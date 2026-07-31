@@ -180,7 +180,7 @@ Use these for quick questions. For anything document-sized, use the **Localizati
 
 ## Costs
 
-A full translation of 250-page PDF using `gemini-3.6-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
+A full translation of 250-page PDF using `deepseek/deepseek-v4-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
 
 > [!NOTE]
 > Datalab OCR provides $10-20 free credits a month, so you really only have to pay for your AI provider.
