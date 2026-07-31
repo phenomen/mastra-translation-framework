@@ -12,12 +12,18 @@ interface Section {
 const HEADING_PATTERN = /^(#{1,6})\s+(.*\S)\s*$/;
 const FENCE_PATTERN = /^\s*(```|~~~)/;
 
+/** Preferred cut points when packing up to the character budget. */
+const PRIMARY_HEADING_LEVELS = new Set([1, 2]);
+
 /**
- * Splits a document into parts small enough to translate in one call, preferring
- * heading boundaries and falling back to paragraph packing.
+ * Splits a document into parts small enough to translate in one call.
  *
- * Headings and fences inside code blocks are ignored so that a `#` comment in a
- * shell snippet never becomes a chapter break.
+ * Strategy:
+ * 1. Cut on h1/h2 boundaries (ignoring headings inside fenced code).
+ * 2. Greedily pack consecutive sections until `maxPartChars` would be exceeded,
+ *    so the cut lands on the nearest prior h1/h2 once the budget is full.
+ * 3. If a single h1/h2 section is still too large, split it on deeper headings,
+ *    then fall back to paragraph packing and hard line splits.
  */
 export function chunkDocument(
   content: string,
@@ -31,45 +37,125 @@ export function chunkDocument(
   }
 
   const lines = normalized.split('\n');
-  const headingLevels = collectHeadingLevels(lines);
+  const primaryLevel = primarySplitLevel(lines);
 
-  let candidate: Section[] = [{ lines }];
+  const primarySections =
+    primaryLevel === null
+      ? [{ lines }]
+      : splitAtHeadingLevel(lines, primaryLevel);
 
-  for (const level of headingLevels) {
-    const sections = splitAtHeadingLevel(lines, level);
-    if (sections.length <= 1) continue;
+  const atomic = primarySections.flatMap((section) =>
+    expandOversizedSection(section, maxPartChars),
+  );
 
-    candidate = sections;
-    if (
-      sections.every((section) => sectionText(section).length <= maxPartChars)
-    )
-      break;
+  return packSections(atomic, maxPartChars);
+}
+
+/**
+ * Returns 2 when the doc has any h2 (split on h1 and h2), 1 when only h1,
+ * or null when there are no primary headings.
+ */
+function primarySplitLevel(lines: string[]): number | null {
+  const levels = collectHeadingLevels(lines).filter((level) =>
+    PRIMARY_HEADING_LEVELS.has(level),
+  );
+  if (levels.length === 0) return null;
+  return Math.max(...levels);
+}
+
+/**
+ * Break an oversized section into pieces that each fit the budget, preferring
+ * deeper markdown headings before paragraph packing.
+ */
+function expandOversizedSection(
+  section: Section,
+  maxPartChars: number,
+): Section[] {
+  const text = sectionText(section);
+  if (!text) return [];
+  if (text.length <= maxPartChars) return [section];
+
+  const deeperLevels = collectHeadingLevels(section.lines)
+    .filter((level) => level >= 3)
+    .sort((a, b) => a - b);
+
+  for (const level of deeperLevels) {
+    const subsections = splitAtHeadingLevel(section.lines, level);
+    if (subsections.length <= 1) continue;
+
+    return subsections.flatMap((subsection) =>
+      expandOversizedSection(subsection, maxPartChars),
+    );
   }
 
-  const parts: DocumentPart[] = [];
+  return packBlocks(text, maxPartChars).map((piece) => ({
+    ...(section.title ? { title: section.title } : {}),
+    lines: piece.split('\n'),
+  }));
+}
 
-  for (const section of candidate) {
+/**
+ * Merge consecutive atomic sections until adding the next one would exceed the
+ * budget — that is the "nearest prior h1/h2" cut the caller asked for.
+ */
+function packSections(
+  sections: Section[],
+  maxPartChars: number,
+): DocumentPart[] {
+  const parts: DocumentPart[] = [];
+  let current: Section[] = [];
+  let currentLength = 0;
+
+  const flush = () => {
+    if (current.length === 0) return;
+
+    const content = current
+      .map(sectionText)
+      .filter((piece) => piece.length > 0)
+      .join('\n\n');
+
+    if (content) {
+      const title = current.find((section) => section.title)?.title;
+      parts.push({
+        index: parts.length + 1,
+        ...(title ? { title } : {}),
+        content,
+      });
+    }
+
+    current = [];
+    currentLength = 0;
+  };
+
+  for (const section of sections) {
     const text = sectionText(section);
     if (!text) continue;
 
-    if (text.length <= maxPartChars) {
-      parts.push({
-        index: parts.length + 1,
-        title: section.title,
-        content: text,
-      });
+    if (text.length > maxPartChars) {
+      flush();
+      for (const piece of packBlocks(text, maxPartChars)) {
+        parts.push({
+          index: parts.length + 1,
+          ...(section.title ? { title: section.title } : {}),
+          content: piece,
+        });
+      }
       continue;
     }
 
-    for (const piece of packBlocks(text, maxPartChars)) {
-      parts.push({
-        index: parts.length + 1,
-        title: section.title,
-        content: piece,
-      });
+    const separator = currentLength > 0 ? 2 : 0;
+    if (
+      currentLength > 0 &&
+      currentLength + separator + text.length > maxPartChars
+    ) {
+      flush();
     }
+
+    current.push(section);
+    currentLength += (currentLength > 0 ? 2 : 0) + text.length;
   }
 
+  flush();
   return parts;
 }
 

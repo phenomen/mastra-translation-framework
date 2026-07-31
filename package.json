@@ -17,12 +17,12 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
-    "@mastra/core": "^1.54.0",
+    "@mastra/core": "^1.55.0",
     "@mastra/duckdb": "^1.5.2",
     "@mastra/libsql": "^1.18.0",
     "@mastra/memory": "^1.24.0",
     "@mastra/observability": "^1.16.3",
-    "officeparser": "^7.5.0",
+    "officeparser": "^7.5.1",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^6.2.108",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "mastra": "^1.20.3",
+    "mastra": "^1.21.0",
     "oxfmt": "^0.61.0",
     "oxlint": "^1.76.0",
     "typescript": "7.0.2"

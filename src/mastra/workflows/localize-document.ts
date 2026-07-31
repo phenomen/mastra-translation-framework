@@ -286,13 +286,14 @@ const prepareRunStep = createStep({
 
 /**
  * Splits by bookmarks or a verified table of contents, then OCRs each part.
- * Converted parts are cached on disk so a retry after a network failure does not
- * re-spend Datalab credits on work that already succeeded.
+ * OCR markdown is cached under `ocr/` so a retry after a network failure does not
+ * re-spend Datalab credits. Each OCR result is then re-chunked under
+ * `maxPartChars` on h1/h2 boundaries before translation.
  */
 const preparePdfPartsStep = createStep({
   id: 'prepare-pdf-parts',
   description:
-    'Plan chapter ranges, split the PDF, and convert each part to markdown via OCR.',
+    'Plan chapter ranges, split the PDF, convert each part to markdown via OCR, then chunk oversized parts on headings.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
   retries: 2,
@@ -320,18 +321,23 @@ const preparePdfPartsStep = createStep({
       baseName,
     );
 
+    const ocrDir = path.posix.join(run.runDir, 'ocr');
+    const partsDir = path.posix.join(run.runDir, 'parts');
+    await ensureWorkspaceDir(ocrDir);
+    await ensureWorkspaceDir(partsDir);
+
     const parts: SourcePart[] = [];
+    let nextIndex = 1;
 
     for (const part of splitParts) {
-      const markdownPath = path.posix.join(
-        run.runDir,
-        'parts',
+      const ocrPath = path.posix.join(
+        ocrDir,
         `part-${padIndex(part.index)}.md`,
       );
       let markdown: string;
 
-      if (await workspaceFileExists(markdownPath)) {
-        markdown = await readWorkspaceText(markdownPath);
+      if (await workspaceFileExists(ocrPath)) {
+        markdown = await readWorkspaceText(ocrPath);
       } else {
         await writer?.write(
           `Converting part ${part.index} of ${splitParts.length} (pages ${part.startPage}-${part.endPage})\n`,
@@ -341,19 +347,50 @@ const preparePdfPartsStep = createStep({
           path.basename(part.partPath),
         );
         markdown = outcome.markdown;
-        await writeWorkspaceFile(markdownPath, markdown);
+        await writeWorkspaceFile(ocrPath, markdown);
       }
 
-      parts.push({
-        index: part.index,
-        ...(part.title ? { title: part.title } : {}),
-        content: stripPageSeparators(markdown),
-        startPage: part.startPage,
-        endPage: part.endPage,
-      });
+      const chunks = chunkDocument(
+        stripPageSeparators(markdown),
+        run.maxPartChars,
+      );
+
+      if (chunks.length === 0) continue;
+
+      for (const chunk of chunks) {
+        const index = nextIndex;
+        nextIndex += 1;
+        const title = chunk.title ?? part.title;
+
+        await writeWorkspaceFile(
+          path.posix.join(partsDir, `part-${padIndex(index)}.md`),
+          chunk.content,
+        );
+
+        parts.push({
+          index,
+          ...(title ? { title } : {}),
+          content: chunk.content,
+          startPage: part.startPage,
+          endPage: part.endPage,
+        });
+      }
     }
 
-    return { run, partSource: plan.source, parts };
+    if (parts.length === 0) {
+      throw new Error(
+        `Document "${run.sourcePath}" produced no translatable content after OCR.`,
+      );
+    }
+
+    return {
+      run,
+      partSource:
+        parts.length > splitParts.length
+          ? `${plan.source}+headings`
+          : plan.source,
+      parts,
+    };
   },
 });
 

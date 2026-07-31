@@ -1,12 +1,12 @@
-import { Agent } from '@mastra/core/agent';
+import { Agent } from "@mastra/core/agent";
 
-import { AI_MODEL } from '../config';
+import { AI_MODEL } from "../config";
 
 export const translatorAgent = new Agent({
-  id: 'translator-agent',
-  name: 'Translator Agent',
+  id: "translator-agent",
+  name: "Translator Agent",
   description:
-    'Translates one part of a document into the target language, applying a terminology glossary and extending it with newly established terms.',
+    "Translates one part of a document into the target language, applying a terminology glossary and extending it with newly established terms.",
   instructions: `You are a professional localization translator. You translate one part of a larger document at a time.
 
 Each request gives you the target language, an optional source language, a style guide, the current terminology glossary, and the part to translate.
@@ -35,4 +35,7 @@ Subtitles, when the request gives you cues rather than prose:
 
 Return only the structured result. The translation field holds the complete translated part and nothing else.`,
   model: AI_MODEL,
+  defaultOptions: {
+    maxSteps: 20,
+  },
 });
