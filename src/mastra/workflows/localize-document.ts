@@ -163,7 +163,10 @@ const workflowInputSchema = z.object({
     ),
   glossaryPath: z
     .string()
-    .describe('Path to glossary (.md, .txt, .json, .csv)'),
+    .optional()
+    .describe(
+      'Path to glossary (.md, .txt, .json, .csv). Omit to start with an empty glossary.',
+    ),
   targetLanguage: z.string().describe('Language to translate into ("German")'),
   styleGuide: z
     .string()
@@ -312,7 +315,9 @@ const prepareRunStep = createStep({
       await assertWorkspaceFile(sourcePath, 'Source document');
     }
 
-    const kinds = sourcePaths.map((sourcePath) => detectDocumentKind(sourcePath));
+    const kinds = sourcePaths.map((sourcePath) =>
+      detectDocumentKind(sourcePath),
+    );
     const kind = kinds[0]!;
     if (kinds.some((entry) => entry !== kind)) {
       const summary = sourcePaths
@@ -569,11 +574,7 @@ const chunkTextPartsStep = createStep({
         nextIndex += 1;
 
         await writeWorkspaceFile(
-          path.posix.join(
-            run.runDir,
-            'parts',
-            `part-${padIndex(index)}.md`,
-          ),
+          path.posix.join(run.runDir, 'parts', `part-${padIndex(index)}.md`),
           chunk.content,
         );
         parts.push({
@@ -665,11 +666,7 @@ const prepareOfficePartsStep = createStep({
         nextIndex += 1;
 
         await writeWorkspaceFile(
-          path.posix.join(
-            run.runDir,
-            'parts',
-            `part-${padIndex(index)}.md`,
-          ),
+          path.posix.join(run.runDir, 'parts', `part-${padIndex(index)}.md`),
           chunk.content,
         );
         parts.push({
@@ -1133,9 +1130,7 @@ const assembleOutputStep = createStep({
   outputSchema: workflowOutputSchema,
   execute: async ({ inputData }) => {
     const { run, partSource, parts, reviewed, issues } = inputData;
-    const reviewedByIndex = new Map(
-      reviewed.map((part) => [part.index, part]),
-    );
+    const reviewedByIndex = new Map(reviewed.map((part) => [part.index, part]));
 
     const outputs: Array<z.infer<typeof documentOutputSchema>> = [];
 
@@ -1149,8 +1144,8 @@ const assembleOutputStep = createStep({
       const documentParts = parts.filter(
         (part) => part.sourceIndex === sourceIndex,
       );
-      const documentReviewed = documentParts.map(
-        (part) => reviewedByIndex.get(part.index)!,
+      const documentReviewed = documentParts.map((part) =>
+        reviewedByIndex.get(part.index)!,
       );
 
       let content: string;

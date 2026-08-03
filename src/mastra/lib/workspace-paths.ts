@@ -70,3 +70,44 @@ export async function ensureWorkspaceDir(
   await workspaceFilesystem.mkdir(relativePath, { recursive: true });
   return normalize(relativePath);
 }
+
+export type WorkspaceDirEntry = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+};
+
+/** Lists a workspace directory. Paths are workspace-relative posix strings. */
+export async function listWorkspaceDir(
+  relativePath: string,
+): Promise<WorkspaceDirEntry[]> {
+  const dir = normalize(relativePath || '.') || '.';
+  const entries = await workspaceFilesystem.readdir(dir);
+
+  return entries.map((entry) => ({
+    name: entry.name,
+    path: dir === '.' ? entry.name : path.posix.join(dir, entry.name),
+    type: entry.type === 'directory' ? 'directory' : 'file',
+  }));
+}
+
+export async function assertWorkspaceDir(
+  relativePath: string,
+  label: string,
+): Promise<void> {
+  const dir = normalize(relativePath || '.') || '.';
+  try {
+    const info = await workspaceFilesystem.stat(dir);
+    if (info.type === 'directory') return;
+  } catch {
+    // fall through to the not-found error
+  }
+
+  const onDisk = workspaceFilesystem.resolveAbsolutePath(dir);
+
+  throw new Error(
+    onDisk
+      ? `${label} not found at "${onDisk}". Paths are relative to the workspace directory (${workspaceFilesystem.basePath}).`
+      : `${label} path "${relativePath}" resolves outside the workspace directory (${workspaceFilesystem.basePath}).`,
+  );
+}

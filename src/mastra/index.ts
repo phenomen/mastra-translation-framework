@@ -17,6 +17,7 @@ import { documentTools } from './tools/document-tools';
 import { glossaryTools } from './tools/glossary-tools';
 import { officeTools } from './tools/office-tools';
 import { pdfTools } from './tools/pdf-tools';
+import { projectTools } from './tools/project-tools';
 import { localizeDocumentWorkflow } from './workflows/localize-document';
 import { workspace } from './workspace';
 
@@ -30,6 +31,7 @@ export const mastra = new Mastra({
     ...pdfTools,
     ...ocrTools,
     ...officeTools,
+    ...projectTools,
   },
   storage: new MastraCompositeStore({
     id: 'composite-storage',

@@ -2,7 +2,7 @@
 
 Mastra Translation Framework is an agent that translates documents with consistent terminology. You provide one or more documents of the same type, the target language, and optionally a glossary and a style guide. It splits the documents into parts, translates them one after another while keeping terminology consistent, reviews the finished translation, and writes the result to a file for you.
 
-It is meant for documents where consistency matters: documentation, subtitles, rulebooks, game localizations, website and app translation files.
+It is meant for documents where consistency matters: documentation, subtitles, books, game localizations, website and app translation files.
 
 ## Supported Documents
 
@@ -48,7 +48,7 @@ Open the address it prints (usually <http://localhost:4111>) in your browser.
 > [!NOTE]
 > For advanced setup (server deployment, API, framework integration) see [Mastra docs](https://mastra.ai/docs).
 
-## Your Documents
+## Prepare Your Documents
 
 Place your document files/directories in the workspace:
 
@@ -61,6 +61,15 @@ can use subfolders to keep projects apart, for example
 `workspace/game/rulebook.pdf`. When you tell the app which file to use, give the path
 without the workspace part, so `game/rulebook.pdf`.
 
+You can also point the Localization Agent at a whole project folder. Name the files so they
+are easy to identify:
+
+| Role        | Example names                                     |
+| ----------- | ------------------------------------------------- |
+| Sources     | `ch1.pdf`, `ch2.pdf`, `episode-01.srt`, `book.md` |
+| Glossary    | `glossary.csv`, `glossary.json`, `terms.csv`      |
+| Style Guide | `style.md`, `style-guide.txt`, `guide.md`         |
+
 > [!WARNING]
 > The app can only see files inside this folder, and it will never touch anything outside it.
 
@@ -69,12 +78,16 @@ without the workspace part, so `game/rulebook.pdf`.
 Open the app in your browser and pick the **Localization Agent**, then just say what you
 want, for example:
 
-> Translate game/rulebook.pdf into Russian. Use game/glossary.csv and the style guide in game/style.md
+> Translate game/rulebook.pdf into Spanish. Use game/glossary.csv and the style guide in game/style.md
 
 You can also hand it several files of the same type in one go. They share the glossary and
 style guide, and terminology decided in an earlier file is reused in the later ones:
 
-> Translate game/ch1.pdf, game/ch2.pdf, and game/ch3.pdf into Russian. Use game/glossary.csv and game/style.md
+> Translate game/ch1.pdf, game/ch2.pdf, and game/ch3.pdf into Spanish. Use game/glossary.csv and game/style.md
+
+Or point it at the project directory and let it find the files automatically:
+
+> Translate everything in "game" directory into Spanish
 
 The agent will ask for anything it still needs. It then starts the run and reports progress as it converts, translates, and reviews each part.
 
@@ -85,11 +98,11 @@ If you prefer filling in a form over chat agent, open Workflows -> **localizeDoc
 **Required**
 
 - `sourcePaths` - one or more documents of the same type, for example `["game/rulebook.pdf"]` or `["game/ch1.pdf", "game/ch2.pdf"]`
-- `targetLanguage` - the language to translate into, for example `Russian` or `pt-BR`
-- `glossaryPath` - your glossary file
+- `targetLanguage` - the language to translate into, for example `Spanish` or `pt-BR`
 
 **Optional**
 
+- `glossaryPath` - your glossary file; omit to start with an empty glossary
 - `styleGuidePath` - your style guide file, if you have one
 - `styleGuide` - short instructions typed directly, instead of or in addition to a file
 - `sourceLanguage` - only if you want to override automatic detection
@@ -123,7 +136,7 @@ You can write it as CSV, JSON, Markdown, or a plain text. All of these are under
 
 ```csv
 source,target,notes
-Code Geass,Код Гиасс,
+Code Geass,Code Geass,
 Lelouch vi Britannia,Лелуш Ви Британия,male
 Kallen Kōzuki,Каллен Кодзуки,female
 ```
@@ -158,13 +171,13 @@ A style guide is free-form text describing how the translation should read: form
 informal address, how to handle measurements, whether to keep English product names, house
 spelling preferences, and so on. Put it in a `.md` or `.txt` file in the workspace, or type it directly into the chat or the `styleGuide` field.
 
-## Your Results
+## Results
 
 Each translation run gets its own folder inside the workspace:
 
 ```
 localization/<run-id>/
-  rulebook.target.md      the finished translation (one file per source document)
+  book.target.md      the finished translation (one file per source document)
   glossary.json           every term used, including the ones proposed during the run
   report.json             a summary of the run and anything the reviewer flagged
   parts/                  the original document(s) split into pieces
