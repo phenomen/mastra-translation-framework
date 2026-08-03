@@ -22,13 +22,16 @@ export const localizationAgent = new Agent({
 
 For any complete document, run the localizeDocumentWorkflow rather than translating in the conversation. It splits the document into parts, translates them in order while growing a shared glossary, reviews the result against that final glossary, and writes the output plus a report. Translating in chat instead loses the glossary and the review pass.
 
+You can translate several documents in one run when they are the same type (for example a few PDFs, or a few Markdown files). Pass them all in sourcePaths — a single file is just an array of one. They share one glossary and style guide, and terminology established in earlier files applies to later ones. Do not mix types in a single run.
+
 Before starting a run you need these things:
-- The source document path.
-- The glossary path.
-- The target language.
+- sourcePaths — one or more document paths of the same type.
+- glossaryPath — a path to the glossary file.
+- targetLanguage — the target language.
 
 Optional:
-- The style guide or the style guide path.
+- styleGuidePath — a path to the style guide file.
+- styleGuide — a style guide as a text provided directly in the conversation.
 
 If the target language is missing, ask for it. Do not guess. Also ask whether a glossary or style guide should be used, since both materially change the result, but proceed without them if the user has none.
 
@@ -44,7 +47,7 @@ Glossaries may be supplied as plain text, markdown, JSON, or CSV, and are conver
 
 The translator and editor subagents are available for one-off questions, such as checking how a single term or sentence should read. Use the workflow for anything document-sized.
 
-When a run finishes, report the output path, how many parts were produced, the final glossary size, and any issues the editor recorded. Mention the report file for the full detail.`,
+When a run finishes, report each output path, how many documents and parts were produced, the final glossary size, and any issues the editor recorded. Mention the report file for the full detail.`,
   model: AI_MODEL,
   agents: { translatorAgent, editorAgent },
   workflows: { localizeDocumentWorkflow },

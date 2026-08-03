@@ -84,10 +84,10 @@ const outputFormatSchema = z.enum(['markdown', 'text', 'json', 'srt', 'ass']);
 
 const runContextSchema = z.object({
   runDir: z.string(),
-  sourcePath: z.string(),
+  sourcePaths: z.array(z.string()).min(1),
   kind: documentKindSchema,
   outputFormat: outputFormatSchema,
-  outputPath: z.string(),
+  outputPaths: z.array(z.string()).min(1),
   glossaryPath: z.string(),
   targetLanguage: z.string(),
   sourceLanguage: z.string().optional(),
@@ -100,6 +100,8 @@ const runContextSchema = z.object({
 
 const sourcePartSchema = z.object({
   index: z.number(),
+  sourcePath: z.string(),
+  sourceIndex: z.number(),
   title: z.string().optional(),
   content: z.string().optional(),
   entries: z
@@ -119,7 +121,6 @@ const sourcePartSchema = z.object({
   startPage: z.number().optional(),
   endPage: z.number().optional(),
 });
-
 const translatedPartSchema = z.object({
   index: z.number(),
   title: z.string().optional(),
@@ -154,10 +155,11 @@ const reviewStageSchema = partsStageSchema.extend({
 });
 
 const workflowInputSchema = z.object({
-  sourcePath: z
-    .string()
+  sourcePaths: z
+    .array(z.string())
+    .min(1)
     .describe(
-      'Path to the document (.md, .pdf, .txt, .json, .srt, .ass, .docx, .rtf, .odt)',
+      'One or more documents of the same type (.md, .pdf, .txt, .json, .srt, .ass, .docx, .rtf, .odt). A single file is just an array of one. All files share the glossary and style guide; terminology established in earlier files applies to later ones.',
     ),
   glossaryPath: z
     .string()
@@ -178,7 +180,9 @@ const workflowInputSchema = z.object({
   outputPath: z
     .string()
     .optional()
-    .describe('Defaults to a file inside the run directory.'),
+    .describe(
+      'For a single document, the output file path. For multiple documents, a directory where each output is written. Defaults inside the run directory.',
+    ),
   maxPartChars: z.number().int().min(500).optional(),
   maxPagesPerPart: z.number().int().min(1).optional(),
   minPagesPerPart: z.number().int().min(1).optional(),
@@ -190,24 +194,85 @@ const workflowInputSchema = z.object({
     ),
 });
 
+const documentOutputSchema = z.object({
+  sourcePath: z.string(),
+  outputPath: z.string(),
+  partCount: z.number(),
+});
+
 const workflowOutputSchema = z.object({
   outputPath: z.string(),
+  outputs: z.array(documentOutputSchema),
   glossaryPath: z.string(),
   reportPath: z.string(),
   runDir: z.string(),
   outputFormat: outputFormatSchema,
   partSource: z.string(),
   partCount: z.number(),
+  documentCount: z.number(),
   glossaryTermCount: z.number(),
   issueCount: z.number(),
 });
-
 type RunContext = z.infer<typeof runContextSchema>;
 type SourcePart = z.infer<typeof sourcePartSchema>;
 type TranslatedPart = z.infer<typeof translatedPartSchema>;
 
 function padIndex(index: number): string {
   return String(index).padStart(3, '0');
+}
+
+/**
+ * One output path per source. A provided outputPath is the file for a single
+ * document, or the directory that holds every file when translating several.
+ * Basename collisions across sources get a doc-NNN- prefix.
+ */
+function resolveOutputPaths(
+  sourcePaths: string[],
+  targetLanguage: string,
+  outputFormat: z.infer<typeof outputFormatSchema>,
+  runDir: string,
+  outputPath?: string,
+): string[] {
+  if (sourcePaths.length === 1) {
+    return [
+      outputPath ??
+        path.posix.join(
+          runDir,
+          defaultOutputFileName(sourcePaths[0]!, targetLanguage, outputFormat),
+        ),
+    ];
+  }
+
+  const outputDir = outputPath ?? runDir;
+  const fileNames = sourcePaths.map((sourcePath) =>
+    defaultOutputFileName(sourcePath, targetLanguage, outputFormat),
+  );
+  const counts = new Map<string, number>();
+  for (const name of fileNames) {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+
+  return sourcePaths.map((sourcePath, index) => {
+    const fileName = fileNames[index]!;
+    const uniqueName =
+      (counts.get(fileName) ?? 0) > 1
+        ? `doc-${padIndex(index + 1)}-${fileName}`
+        : fileName;
+    return path.posix.join(outputDir, uniqueName);
+  });
+}
+
+/** Subdirectory under the run for per-document caches when translating several files. */
+function documentCacheDir(
+  sourcePaths: string[],
+  sourceIndex: number,
+): string | undefined {
+  if (sourcePaths.length === 1) return undefined;
+  const base = path.basename(
+    sourcePaths[sourceIndex]!,
+    path.extname(sourcePaths[sourceIndex]!),
+  );
+  return `doc-${padIndex(sourceIndex + 1)}-${base}`;
 }
 
 function promptContext(run: RunContext, terms: GlossaryTerm[]): PromptContext {
@@ -240,11 +305,24 @@ const prepareRunStep = createStep({
   inputSchema: workflowInputSchema,
   outputSchema: runContextSchema,
   execute: async ({ inputData, runId }) => {
-    const { sourcePath, targetLanguage } = inputData;
+    const sourcePaths = [...new Set(inputData.sourcePaths)];
+    const { targetLanguage } = inputData;
 
-    await assertWorkspaceFile(sourcePath, 'Source document');
+    for (const sourcePath of sourcePaths) {
+      await assertWorkspaceFile(sourcePath, 'Source document');
+    }
 
-    const kind = detectDocumentKind(sourcePath);
+    const kinds = sourcePaths.map((sourcePath) => detectDocumentKind(sourcePath));
+    const kind = kinds[0]!;
+    if (kinds.some((entry) => entry !== kind)) {
+      const summary = sourcePaths
+        .map((sourcePath, index) => `${sourcePath} (${kinds[index]})`)
+        .join(', ');
+      throw new Error(
+        `All source documents must be the same type. Got: ${summary}.`,
+      );
+    }
+
     const outputFormat = outputFormatForKind(kind);
 
     const runDir = path.posix.join(TRANSLATION_RUNS_DIR, runId);
@@ -271,19 +349,20 @@ const prepareRunStep = createStep({
       );
     }
 
-    const outputPath =
-      inputData.outputPath ??
-      path.posix.join(
-        runDir,
-        defaultOutputFileName(sourcePath, targetLanguage, outputFormat),
-      );
+    const outputPaths = resolveOutputPaths(
+      sourcePaths,
+      targetLanguage,
+      outputFormat,
+      runDir,
+      inputData.outputPath,
+    );
 
     return {
       runDir,
-      sourcePath,
+      sourcePaths,
       kind,
       outputFormat,
-      outputPath,
+      outputPaths,
       glossaryPath,
       targetLanguage,
       ...(inputData.sourceLanguage
@@ -304,116 +383,147 @@ const prepareRunStep = createStep({
  * extracts embedded text locally via officeparser (no OCR). Markdown is cached
  * under `ocr/` so a retry after a network failure does not re-spend Datalab
  * credits. Each result is then re-chunked under `maxPartChars` on h1/h2
- * boundaries before translation.
+ * boundaries before translation. Multiple PDFs are processed in order so later
+ * documents inherit terminology established earlier in the shared glossary.
  */
 const preparePdfPartsStep = createStep({
   id: 'prepare-pdf-parts',
   description:
-    'Plan chapter ranges, split the PDF, convert each part to markdown (remote OCR or local text extraction), then chunk oversized parts on headings.',
+    'Plan chapter ranges, split each PDF, convert each part to markdown (remote OCR or local text extraction), then chunk oversized parts on headings.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
   retries: 2,
   execute: async ({ inputData: run, writer }) => {
-    const bytes = await readWorkspaceBytes(run.sourcePath);
-    const plan = await planPdfParts(bytes, {
-      maxPagesPerPart: run.maxPagesPerPart,
-      minPagesPerPart: run.minPagesPerPart,
-    });
-
-    if (plan.ranges.length === 0) {
-      throw new Error(
-        `Could not determine any page ranges for "${run.sourcePath}".`,
-      );
-    }
-
-    const baseName = path.basename(
-      run.sourcePath,
-      path.extname(run.sourcePath),
-    );
-    const splitParts = await splitPdfByRanges(
-      bytes,
-      plan.ranges,
-      path.posix.join(run.runDir, 'source-parts'),
-      baseName,
-    );
-
-    const ocrDir = path.posix.join(run.runDir, 'ocr');
-    const partsDir = path.posix.join(run.runDir, 'parts');
-    await ensureWorkspaceDir(ocrDir);
-    await ensureWorkspaceDir(partsDir);
-
     const parts: SourcePart[] = [];
+    const partSources: string[] = [];
     let nextIndex = 1;
 
-    for (const part of splitParts) {
-      const ocrPath = path.posix.join(
-        ocrDir,
-        `part-${padIndex(part.index)}.md`,
-      );
-      let markdown: string;
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+      const cacheDir = documentCacheDir(run.sourcePaths, sourceIndex);
 
-      if (await workspaceFileExists(ocrPath)) {
-        markdown = await readWorkspaceText(ocrPath);
-      } else {
-        const modeLabel = run.remoteOCR
-          ? 'via remote OCR'
-          : 'via local text extraction';
+      if (run.sourcePaths.length > 1) {
         await writer?.write(
-          `Converting part ${part.index} of ${splitParts.length} (pages ${part.startPage}-${part.endPage}) ${modeLabel}\n`,
+          `Preparing PDF ${sourceIndex + 1} of ${run.sourcePaths.length}: ${sourcePath}\n`,
         );
-
-        const partBytes = await readWorkspaceBytes(part.partPath);
-        if (run.remoteOCR) {
-          const outcome = await convertPdfToMarkdown(
-            partBytes,
-            path.basename(part.partPath),
-          );
-          markdown = outcome.markdown;
-        } else {
-          markdown = await convertPdfToMarkdownLocal(partBytes);
-        }
-        await writeWorkspaceFile(ocrPath, markdown);
       }
 
-      const chunks = chunkDocument(
-        stripPageSeparators(markdown),
-        run.maxPartChars,
+      const bytes = await readWorkspaceBytes(sourcePath);
+      const plan = await planPdfParts(bytes, {
+        maxPagesPerPart: run.maxPagesPerPart,
+        minPagesPerPart: run.minPagesPerPart,
+      });
+
+      if (plan.ranges.length === 0) {
+        throw new Error(
+          `Could not determine any page ranges for "${sourcePath}".`,
+        );
+      }
+
+      const baseName = path.basename(sourcePath, path.extname(sourcePath));
+      const splitParts = await splitPdfByRanges(
+        bytes,
+        plan.ranges,
+        path.posix.join(
+          run.runDir,
+          'source-parts',
+          ...(cacheDir ? [cacheDir] : []),
+        ),
+        baseName,
       );
 
-      if (chunks.length === 0) continue;
+      const ocrDir = path.posix.join(
+        run.runDir,
+        'ocr',
+        ...(cacheDir ? [cacheDir] : []),
+      );
+      const partsDir = path.posix.join(run.runDir, 'parts');
+      await ensureWorkspaceDir(ocrDir);
+      await ensureWorkspaceDir(partsDir);
 
-      for (const chunk of chunks) {
-        const index = nextIndex;
-        nextIndex += 1;
-        const title = chunk.title ?? part.title;
+      const partsBefore = parts.length;
 
-        await writeWorkspaceFile(
-          path.posix.join(partsDir, `part-${padIndex(index)}.md`),
-          chunk.content,
+      for (const part of splitParts) {
+        const ocrPath = path.posix.join(
+          ocrDir,
+          `part-${padIndex(part.index)}.md`,
+        );
+        let markdown: string;
+
+        if (await workspaceFileExists(ocrPath)) {
+          markdown = await readWorkspaceText(ocrPath);
+        } else {
+          const modeLabel = run.remoteOCR
+            ? 'via remote OCR'
+            : 'via local text extraction';
+          await writer?.write(
+            `Converting part ${part.index} of ${splitParts.length} (pages ${part.startPage}-${part.endPage}) ${modeLabel}\n`,
+          );
+
+          const partBytes = await readWorkspaceBytes(part.partPath);
+          if (run.remoteOCR) {
+            const outcome = await convertPdfToMarkdown(
+              partBytes,
+              path.basename(part.partPath),
+            );
+            markdown = outcome.markdown;
+          } else {
+            markdown = await convertPdfToMarkdownLocal(partBytes);
+          }
+          await writeWorkspaceFile(ocrPath, markdown);
+        }
+
+        const chunks = chunkDocument(
+          stripPageSeparators(markdown),
+          run.maxPartChars,
         );
 
-        parts.push({
-          index,
-          ...(title ? { title } : {}),
-          content: chunk.content,
-          startPage: part.startPage,
-          endPage: part.endPage,
-        });
-      }
-    }
+        if (chunks.length === 0) continue;
 
-    if (parts.length === 0) {
-      throw new Error(
-        `Document "${run.sourcePath}" produced no translatable content after ${run.remoteOCR ? 'OCR' : 'local text extraction'}.`,
+        for (const chunk of chunks) {
+          const index = nextIndex;
+          nextIndex += 1;
+          const title = chunk.title ?? part.title;
+
+          await writeWorkspaceFile(
+            path.posix.join(partsDir, `part-${padIndex(index)}.md`),
+            chunk.content,
+          );
+
+          parts.push({
+            index,
+            sourcePath,
+            sourceIndex,
+            ...(title ? { title } : {}),
+            content: chunk.content,
+            startPage: part.startPage,
+            endPage: part.endPage,
+          });
+        }
+      }
+
+      const produced = parts.length - partsBefore;
+      if (produced === 0) {
+        throw new Error(
+          `Document "${sourcePath}" produced no translatable content after ${run.remoteOCR ? 'OCR' : 'local text extraction'}.`,
+        );
+      }
+
+      partSources.push(
+        produced > splitParts.length ? `${plan.source}+headings` : plan.source,
       );
     }
 
     return {
       run,
       partSource:
-        parts.length > splitParts.length
-          ? `${plan.source}+headings`
-          : plan.source,
+        run.sourcePaths.length > 1
+          ? `multi-document:${partSources.join(',')}`
+          : partSources[0]!,
       parts,
     };
   },
@@ -422,40 +532,70 @@ const preparePdfPartsStep = createStep({
 const chunkTextPartsStep = createStep({
   id: 'chunk-text-parts',
   description:
-    'Split a text or markdown document into parts on heading boundaries.',
+    'Split text or markdown documents into parts on heading boundaries.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
-  execute: async ({ inputData: run }) => {
-    const content = await readWorkspaceText(run.sourcePath);
-    const chunks = chunkDocument(content, run.maxPartChars);
-
-    if (chunks.length === 0) {
-      throw new Error(
-        `Document "${run.sourcePath}" has no translatable content.`,
-      );
-    }
-
+  execute: async ({ inputData: run, writer }) => {
     const parts: SourcePart[] = [];
+    let nextIndex = 1;
+    let multiPart = false;
 
-    for (const chunk of chunks) {
-      await writeWorkspaceFile(
-        path.posix.join(
-          run.runDir,
-          'parts',
-          `part-${padIndex(chunk.index)}.md`,
-        ),
-        chunk.content,
-      );
-      parts.push({
-        index: chunk.index,
-        ...(chunk.title ? { title: chunk.title } : {}),
-        content: chunk.content,
-      });
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+
+      if (run.sourcePaths.length > 1) {
+        await writer?.write(
+          `Chunking document ${sourceIndex + 1} of ${run.sourcePaths.length}: ${sourcePath}\n`,
+        );
+      }
+
+      const content = await readWorkspaceText(sourcePath);
+      const chunks = chunkDocument(content, run.maxPartChars);
+
+      if (chunks.length === 0) {
+        throw new Error(
+          `Document "${sourcePath}" has no translatable content.`,
+        );
+      }
+
+      if (chunks.length > 1) multiPart = true;
+
+      for (const chunk of chunks) {
+        const index = nextIndex;
+        nextIndex += 1;
+
+        await writeWorkspaceFile(
+          path.posix.join(
+            run.runDir,
+            'parts',
+            `part-${padIndex(index)}.md`,
+          ),
+          chunk.content,
+        );
+        parts.push({
+          index,
+          sourcePath,
+          sourceIndex,
+          ...(chunk.title ? { title: chunk.title } : {}),
+          content: chunk.content,
+        });
+      }
     }
 
     return {
       run,
-      partSource: chunks.length > 1 ? 'headings' : 'single-part',
+      partSource:
+        run.sourcePaths.length > 1
+          ? multiPart
+            ? 'multi-document:headings'
+            : 'multi-document:single-part'
+          : multiPart
+            ? 'headings'
+            : 'single-part',
       parts,
     };
   },
@@ -469,7 +609,7 @@ const chunkTextPartsStep = createStep({
 const prepareOfficePartsStep = createStep({
   id: 'prepare-office-parts',
   description:
-    'Convert a DOCX, RTF, or ODT document to markdown, then split on heading boundaries.',
+    'Convert DOCX, RTF, or ODT documents to markdown, then split on heading boundaries.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
   execute: async ({ inputData: run, writer }) => {
@@ -479,51 +619,79 @@ const prepareOfficePartsStep = createStep({
       );
     }
 
-    const markdownPath = path.posix.join(run.runDir, 'source.md');
-    let markdown: string;
-
-    if (await workspaceFileExists(markdownPath)) {
-      markdown = await readWorkspaceText(markdownPath);
-    } else {
-      await writer?.write(
-        `Converting ${path.basename(run.sourcePath)} to markdown\n`,
-      );
-      markdown = await convertOfficeToMarkdown(
-        await readWorkspaceBytes(run.sourcePath),
-        run.kind,
-      );
-      await writeWorkspaceFile(markdownPath, markdown);
-    }
-
-    const chunks = chunkDocument(markdown, run.maxPartChars);
-
-    if (chunks.length === 0) {
-      throw new Error(
-        `Document "${run.sourcePath}" has no translatable content after conversion.`,
-      );
-    }
-
     const parts: SourcePart[] = [];
+    let nextIndex = 1;
+    let multiPart = false;
 
-    for (const chunk of chunks) {
-      await writeWorkspaceFile(
-        path.posix.join(
-          run.runDir,
-          'parts',
-          `part-${padIndex(chunk.index)}.md`,
-        ),
-        chunk.content,
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+      const cacheDir = documentCacheDir(run.sourcePaths, sourceIndex);
+      const markdownPath = path.posix.join(
+        run.runDir,
+        ...(cacheDir ? [cacheDir] : []),
+        'source.md',
       );
-      parts.push({
-        index: chunk.index,
-        ...(chunk.title ? { title: chunk.title } : {}),
-        content: chunk.content,
-      });
+      let markdown: string;
+
+      if (await workspaceFileExists(markdownPath)) {
+        markdown = await readWorkspaceText(markdownPath);
+      } else {
+        await writer?.write(
+          `Converting ${path.basename(sourcePath)} to markdown\n`,
+        );
+        markdown = await convertOfficeToMarkdown(
+          await readWorkspaceBytes(sourcePath),
+          run.kind,
+        );
+        await writeWorkspaceFile(markdownPath, markdown);
+      }
+
+      const chunks = chunkDocument(markdown, run.maxPartChars);
+
+      if (chunks.length === 0) {
+        throw new Error(
+          `Document "${sourcePath}" has no translatable content after conversion.`,
+        );
+      }
+
+      if (chunks.length > 1) multiPart = true;
+
+      for (const chunk of chunks) {
+        const index = nextIndex;
+        nextIndex += 1;
+
+        await writeWorkspaceFile(
+          path.posix.join(
+            run.runDir,
+            'parts',
+            `part-${padIndex(index)}.md`,
+          ),
+          chunk.content,
+        );
+        parts.push({
+          index,
+          sourcePath,
+          sourceIndex,
+          ...(chunk.title ? { title: chunk.title } : {}),
+          content: chunk.content,
+        });
+      }
     }
 
     return {
       run,
-      partSource: chunks.length > 1 ? 'office-headings' : 'office-single-part',
+      partSource:
+        run.sourcePaths.length > 1
+          ? multiPart
+            ? 'multi-document:office-headings'
+            : 'multi-document:office-single-part'
+          : multiPart
+            ? 'office-headings'
+            : 'office-single-part',
       parts,
     };
   },
@@ -532,35 +700,65 @@ const prepareOfficePartsStep = createStep({
 const flattenJsonPartsStep = createStep({
   id: 'flatten-json-parts',
   description:
-    'Flatten an i18n resource bundle into batches of translatable string values.',
+    'Flatten i18n resource bundles into batches of translatable string values.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
-  execute: async ({ inputData: run }) => {
-    const raw = await readWorkspaceText(run.sourcePath);
+  execute: async ({ inputData: run, writer }) => {
+    const parts: SourcePart[] = [];
+    let nextIndex = 1;
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      throw new Error(
-        `"${run.sourcePath}" is not valid JSON: ${(error as Error).message}`,
-      );
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+
+      if (run.sourcePaths.length > 1) {
+        await writer?.write(
+          `Flattening JSON ${sourceIndex + 1} of ${run.sourcePaths.length}: ${sourcePath}\n`,
+        );
+      }
+
+      const raw = await readWorkspaceText(sourcePath);
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (error) {
+        throw new Error(
+          `"${sourcePath}" is not valid JSON: ${(error as Error).message}`,
+        );
+      }
+
+      const entries = flattenStrings(parsed);
+      if (entries.length === 0) {
+        throw new Error(
+          `"${sourcePath}" contains no translatable string values.`,
+        );
+      }
+
+      const batches = batchEntries(entries, run.maxPartChars);
+      for (const batch of batches) {
+        const index = nextIndex;
+        nextIndex += 1;
+        parts.push({
+          index,
+          sourcePath,
+          sourceIndex,
+          entries: batch,
+        });
+      }
     }
 
-    const entries = flattenStrings(parsed);
-    if (entries.length === 0) {
-      throw new Error(
-        `"${run.sourcePath}" contains no translatable string values.`,
-      );
-    }
-
-    const batches = batchEntries(entries, run.maxPartChars);
-    const parts: SourcePart[] = batches.map((batch, position) => ({
-      index: position + 1,
-      entries: batch,
-    }));
-
-    return { run, partSource: 'json-batches', parts };
+    return {
+      run,
+      partSource:
+        run.sourcePaths.length > 1
+          ? 'multi-document:json-batches'
+          : 'json-batches',
+      parts,
+    };
   },
 });
 
@@ -572,26 +770,56 @@ const flattenJsonPartsStep = createStep({
 const parseSubtitlePartsStep = createStep({
   id: 'parse-subtitle-parts',
   description:
-    'Parse an SRT or ASS subtitle file into batches of consecutive cues.',
+    'Parse SRT or ASS subtitle files into batches of consecutive cues.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
-  execute: async ({ inputData: run }) => {
-    const raw = await readWorkspaceText(run.sourcePath);
-    const cues = parseSubtitles(raw, run.kind as SubtitleKind);
+  execute: async ({ inputData: run, writer }) => {
+    const parts: SourcePart[] = [];
+    let nextIndex = 1;
 
-    if (cues.length === 0) {
-      throw new Error(
-        `"${run.sourcePath}" contains no translatable subtitle cues.`,
-      );
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+
+      if (run.sourcePaths.length > 1) {
+        await writer?.write(
+          `Parsing subtitles ${sourceIndex + 1} of ${run.sourcePaths.length}: ${sourcePath}\n`,
+        );
+      }
+
+      const raw = await readWorkspaceText(sourcePath);
+      const cues = parseSubtitles(raw, run.kind as SubtitleKind);
+
+      if (cues.length === 0) {
+        throw new Error(
+          `"${sourcePath}" contains no translatable subtitle cues.`,
+        );
+      }
+
+      const batches = batchCues(cues, run.maxPartChars);
+      for (const batch of batches) {
+        const index = nextIndex;
+        nextIndex += 1;
+        parts.push({
+          index,
+          sourcePath,
+          sourceIndex,
+          cues: batch,
+        });
+      }
     }
 
-    const batches = batchCues(cues, run.maxPartChars);
-    const parts: SourcePart[] = batches.map((batch, position) => ({
-      index: position + 1,
-      cues: batch,
-    }));
-
-    return { run, partSource: 'subtitle-cues', parts };
+    return {
+      run,
+      partSource:
+        run.sourcePaths.length > 1
+          ? 'multi-document:subtitle-cues'
+          : 'subtitle-cues',
+      parts,
+    };
   },
 });
 
@@ -652,7 +880,9 @@ const translatePartsStep = createStep({
       };
 
       await writer?.write(
-        `Translating part ${part.index} of ${parts.length}\n`,
+        `Translating part ${part.index} of ${parts.length}${
+          run.sourcePaths.length > 1 ? ` (${part.sourcePath})` : ''
+        }\n`,
       );
 
       if (run.kind === 'json') {
@@ -784,7 +1014,11 @@ const reviewPartsStep = createStep({
       };
 
       await writer?.write(
-        `Reviewing part ${part.index} of ${translated.length}\n`,
+        `Reviewing part ${part.index} of ${translated.length}${
+          run.sourcePaths.length > 1
+            ? ` (${sourceByIndex.get(part.index)?.sourcePath ?? 'unknown'})`
+            : ''
+        }\n`,
       );
 
       if (run.kind === 'json') {
@@ -894,41 +1128,66 @@ const reviewPartsStep = createStep({
 const assembleOutputStep = createStep({
   id: 'assemble-output',
   description:
-    'Write the localized document, the final glossary, and a run report.',
+    'Write each localized document, the final glossary, and a run report.',
   inputSchema: reviewStageSchema,
   outputSchema: workflowOutputSchema,
   execute: async ({ inputData }) => {
     const { run, partSource, parts, reviewed, issues } = inputData;
+    const reviewedByIndex = new Map(
+      reviewed.map((part) => [part.index, part]),
+    );
 
-    let content: string;
+    const outputs: Array<z.infer<typeof documentOutputSchema>> = [];
 
-    if (run.kind === 'json') {
-      const original = JSON.parse(
-        await readWorkspaceText(run.sourcePath),
-      ) as unknown;
-      const translations = new Map<string, string>();
-      for (const part of reviewed) {
-        for (const entry of part.entries ?? [])
-          translations.set(entry.pointer, entry.translation);
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+      const outputPath = run.outputPaths[sourceIndex]!;
+      const documentParts = parts.filter(
+        (part) => part.sourceIndex === sourceIndex,
+      );
+      const documentReviewed = documentParts.map(
+        (part) => reviewedByIndex.get(part.index)!,
+      );
+
+      let content: string;
+
+      if (run.kind === 'json') {
+        const original = JSON.parse(
+          await readWorkspaceText(sourcePath),
+        ) as unknown;
+        const translations = new Map<string, string>();
+        for (const part of documentReviewed) {
+          for (const entry of part.entries ?? [])
+            translations.set(entry.pointer, entry.translation);
+        }
+        content = `${JSON.stringify(rebuildWithTranslations(original, translations), null, 2)}\n`;
+      } else if (isSubtitleKind(run.kind)) {
+        const original = await readWorkspaceText(sourcePath);
+        const translations = new Map<string, string>();
+        for (const part of documentReviewed) {
+          for (const cue of part.cues ?? [])
+            translations.set(cue.id, cue.translation);
+        }
+        content = rebuildSubtitles(original, run.kind, translations);
+      } else {
+        const joined = documentReviewed
+          .map((part) => part.content?.trim() ?? '')
+          .filter(Boolean)
+          .join('\n\n');
+        content = run.outputFormat === 'text' ? stripMarkdown(joined) : joined;
       }
-      content = `${JSON.stringify(rebuildWithTranslations(original, translations), null, 2)}\n`;
-    } else if (isSubtitleKind(run.kind)) {
-      const original = await readWorkspaceText(run.sourcePath);
-      const translations = new Map<string, string>();
-      for (const part of reviewed) {
-        for (const cue of part.cues ?? [])
-          translations.set(cue.id, cue.translation);
-      }
-      content = rebuildSubtitles(original, run.kind, translations);
-    } else {
-      const joined = reviewed
-        .map((part) => part.content?.trim() ?? '')
-        .filter(Boolean)
-        .join('\n\n');
-      content = run.outputFormat === 'text' ? stripMarkdown(joined) : joined;
+
+      await writeWorkspaceFile(outputPath, content);
+      outputs.push({
+        sourcePath,
+        outputPath,
+        partCount: documentParts.length,
+      });
     }
-
-    await writeWorkspaceFile(run.outputPath, content);
 
     const glossary = await readGlossaryFile(run.glossaryPath);
     const reportPath = path.posix.join(run.runDir, 'report.json');
@@ -937,8 +1196,8 @@ const assembleOutputStep = createStep({
       reportPath,
       `${JSON.stringify(
         {
-          sourcePath: run.sourcePath,
-          outputPath: run.outputPath,
+          sourcePaths: run.sourcePaths,
+          outputs,
           kind: run.kind,
           outputFormat: run.outputFormat,
           targetLanguage: run.targetLanguage,
@@ -946,10 +1205,13 @@ const assembleOutputStep = createStep({
           remoteOCR: run.kind === 'pdf' ? run.remoteOCR : null,
           partSource,
           partCount: parts.length,
+          documentCount: run.sourcePaths.length,
           glossaryTermCount: glossary.terms.length,
           issues,
           parts: parts.map((part) => ({
             index: part.index,
+            sourcePath: part.sourcePath,
+            sourceIndex: part.sourceIndex,
             title: part.title ?? null,
             startPage: part.startPage ?? null,
             endPage: part.endPage ?? null,
@@ -963,13 +1225,15 @@ const assembleOutputStep = createStep({
     );
 
     return {
-      outputPath: run.outputPath,
+      outputPath: outputs[0]!.outputPath,
+      outputs,
       glossaryPath: run.glossaryPath,
       reportPath,
       runDir: run.runDir,
       outputFormat: run.outputFormat,
       partSource,
       partCount: parts.length,
+      documentCount: run.sourcePaths.length,
       glossaryTermCount: glossary.terms.length,
       issueCount: issues.length,
     };
@@ -979,7 +1243,7 @@ const assembleOutputStep = createStep({
 export const localizeDocumentWorkflow = createWorkflow({
   id: 'localizeDocumentWorkflow',
   description:
-    'Localize a plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, or subtitle (SRT/ASS) document into a target language using a terminology glossary, then review the result for correctness and consistency.',
+    'Localize one or more plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then review the result for correctness and consistency.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,
 })

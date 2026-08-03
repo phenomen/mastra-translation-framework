@@ -1,6 +1,6 @@
 # Mastra Translation Framework
 
-Mastra Translation Framework is an agent that translates documents with consistent terminology. You provide a document, the target language, and optionally a glossary and a style guide. It splits the document into parts, translates them one after another while keeping terminology consistent, reviews the finished translation, and writes the result to a file for you.
+Mastra Translation Framework is an agent that translates documents with consistent terminology. You provide one or more documents of the same type, the target language, and optionally a glossary and a style guide. It splits the documents into parts, translates them one after another while keeping terminology consistent, reviews the finished translation, and writes the result to a file for you.
 
 It is meant for documents where consistency matters: documentation, subtitles, rulebooks, game localizations, website and app translation files.
 
@@ -71,6 +71,11 @@ want, for example:
 
 > Translate game/rulebook.pdf into Russian. Use game/glossary.csv and the style guide in game/style.md
 
+You can also hand it several files of the same type in one go. They share the glossary and
+style guide, and terminology decided in an earlier file is reused in the later ones:
+
+> Translate game/ch1.pdf, game/ch2.pdf, and game/ch3.pdf into Russian. Use game/glossary.csv and game/style.md
+
 The agent will ask for anything it still needs. It then starts the run and reports progress as it converts, translates, and reviews each part.
 
 ### Direct Workflow
@@ -79,7 +84,7 @@ If you prefer filling in a form over chat agent, open Workflows -> **localizeDoc
 
 **Required**
 
-- `sourcePath` - your document, for example `game/rulebook.pdf` or `anime/episode-01.srt`
+- `sourcePaths` - one or more documents of the same type, for example `["game/rulebook.pdf"]` or `["game/ch1.pdf", "game/ch2.pdf"]`
 - `targetLanguage` - the language to translate into, for example `Russian` or `pt-BR`
 - `glossaryPath` - your glossary file
 
@@ -88,7 +93,7 @@ If you prefer filling in a form over chat agent, open Workflows -> **localizeDoc
 - `styleGuidePath` - your style guide file, if you have one
 - `styleGuide` - short instructions typed directly, instead of or in addition to a file
 - `sourceLanguage` - only if you want to override automatic detection
-- `outputPath` - only if you want the result somewhere specific
+- `outputPath` - for one document, the result file path; for several documents, a directory where each result is written. Defaults inside the run directory
 - `remoteOCR`: `true` forces Datalab remote OCR, `false` forces local
   text extraction.
 
@@ -159,13 +164,17 @@ Each translation run gets its own folder inside the workspace:
 
 ```
 localization/<run-id>/
-  rulebook.target.md      the finished translation
+  rulebook.target.md      the finished translation (one file per source document)
   glossary.json           every term used, including the ones proposed during the run
   report.json             a summary of the run and anything the reviewer flagged
-  parts/                  the original document split into pieces
+  parts/                  the original document(s) split into pieces
   translated/             the first-pass translation of each piece
   reviewed/               each piece after review
 ```
+
+When you translate several documents in one run, each gets its own output file in that
+folder (or in the directory you passed as `outputPath`), and they all share the same
+`glossary.json` and `report.json`.
 
 The intermediate folders are kept on purpose. If a run fails halfway through, for example
 because the network dropped, starting it again reuses the work that already succeeded instead of paying for it twice.
