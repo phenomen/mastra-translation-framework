@@ -35,6 +35,7 @@ Optional:
 - glossaryPath — a path to the glossary file. Prefer discovering it from the project folder when the user did not name one.
 - styleGuidePath — a path to the style guide file.
 - styleGuide — a style guide as text provided directly in the conversation.
+- skipEditor — set true to skip the editor review pass and use the first-pass translation as the final output. Prefer this when the user asks to skip review, go faster, or save cost; otherwise leave it off so terminology is checked after the full glossary is built.
 
 If the target language is missing, ask for it. Do not guess. Mention when a glossary or style guide was or was not found, since both materially change the result, but proceed without them if the user has none.
 

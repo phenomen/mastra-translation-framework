@@ -96,6 +96,7 @@ const runContextSchema = z.object({
   maxPagesPerPart: z.number(),
   minPagesPerPart: z.number(),
   remoteOCR: z.boolean(),
+  skipEditor: z.boolean(),
 });
 
 const sourcePartSchema = z.object({
@@ -194,6 +195,12 @@ const workflowInputSchema = z.object({
     .optional()
     .describe(
       'Use Datalab remote OCR for PDFs. When omitted, remote OCR is used only if DATALAB_API_KEY is set; otherwise local officeparser text extraction is used. Set false to force local extraction even when a key is present.',
+    ),
+  skipEditor: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, skip the editor review pass and assemble output from the first-pass translation. Faster and cheaper; terminology established late in the run is not back-applied.',
     ),
 });
 
@@ -378,6 +385,7 @@ const prepareRunStep = createStep({
       maxPagesPerPart: inputData.maxPagesPerPart ?? DEFAULT_MAX_PAGES_PER_PART,
       minPagesPerPart: inputData.minPagesPerPart ?? DEFAULT_MIN_PAGES_PER_PART,
       remoteOCR: resolveUseRemoteOcr(inputData.remoteOCR),
+      skipEditor: inputData.skipEditor ?? false,
     };
   },
 });
@@ -984,6 +992,20 @@ const reviewPartsStep = createStep({
   outputSchema: reviewStageSchema,
   execute: async ({ inputData, mastra, writer }) => {
     const { run, parts, partSource, translated } = inputData;
+
+    if (run.skipEditor) {
+      await writer?.write(
+        'Skipping editor review; assembling first-pass translation\n',
+      );
+      return {
+        run,
+        partSource,
+        parts,
+        reviewed: translated,
+        issues: [],
+      };
+    }
+
     const editor = mastra.getAgent('editorAgent');
     const glossary = await readGlossaryFile(run.glossaryPath);
     const context = promptContext(run, glossary.terms);
@@ -1198,6 +1220,7 @@ const assembleOutputStep = createStep({
           targetLanguage: run.targetLanguage,
           sourceLanguage: run.sourceLanguage ?? null,
           remoteOCR: run.kind === 'pdf' ? run.remoteOCR : null,
+          skipEditor: run.skipEditor,
           partSource,
           partCount: parts.length,
           documentCount: run.sourcePaths.length,
@@ -1238,7 +1261,7 @@ const assembleOutputStep = createStep({
 export const localizeDocumentWorkflow = createWorkflow({
   id: 'localizeDocumentWorkflow',
   description:
-    'Localize one or more plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then review the result for correctness and consistency.',
+    'Localize one or more plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then optionally review the result for correctness and consistency.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,
 })

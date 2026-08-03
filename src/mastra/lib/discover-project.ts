@@ -1,19 +1,19 @@
-import path from "node:path";
+import path from 'node:path';
 
-import { detectDocumentKind, type DocumentKind } from "./document-kind";
+import { detectDocumentKind, type DocumentKind } from './document-kind';
 import {
   assertWorkspaceDir,
   listWorkspaceDir,
   type WorkspaceDirEntry,
-} from "./workspace-paths";
+} from './workspace-paths';
 
 /** Run-output and VCS folders that are never part of a localization project. */
 const SKIP_DIRECTORY_NAMES = new Set([
-  "translation",
-  "localization",
-  "node_modules",
-  ".git",
-  ".mastra",
+  'translation',
+  'localization',
+  'node_modules',
+  '.git',
+  '.mastra',
 ]);
 
 const GLOSSARY_NAME_PATTERN =
@@ -23,51 +23,51 @@ const STYLE_NAME_PATTERN =
   /(?:^|[-_.\s])(style[-_]?guide|guide|instruction|styleguide|style|tone|voice)(?:$|[-_.\s])/i;
 
 const GLOSSARY_EXTENSIONS = new Set([
-  ".csv",
-  ".json",
-  ".md",
-  ".markdown",
-  ".txt",
+  '.csv',
+  '.json',
+  '.md',
+  '.markdown',
+  '.txt',
 ]);
 
-const STYLE_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
+const STYLE_EXTENSIONS = new Set(['.md', '.markdown', '.txt']);
 
 /** Exact basenames preferred when several glossary candidates exist. */
 const PREFERRED_GLOSSARY_NAMES = [
-  "glossary.csv",
-  "glossary.json",
-  "glossary.md",
-  "glossary.txt",
-  "terms.csv",
-  "terminology.csv",
-  "terms.json",
+  'glossary.csv',
+  'glossary.json',
+  'glossary.md',
+  'glossary.txt',
+  'terms.csv',
+  'terminology.csv',
+  'terms.json',
 ];
 
 /** Exact basenames preferred when several style-guide candidates exist. */
 const PREFERRED_STYLE_NAMES = [
-  "guide.md",
-  "guide.txt",
-  "instruction.md",
-  "instruction.txt",
-  "style_guide.md",
-  "style-guide.md",
-  "style.md",
-  "style.txt",
-  "styleguide.md",
-  "tone.md",
+  'guide.md',
+  'guide.txt',
+  'instruction.md',
+  'instruction.txt',
+  'style_guide.md',
+  'style-guide.md',
+  'style.md',
+  'style.txt',
+  'styleguide.md',
+  'tone.md',
 ];
 
 /** Prefer these source kinds when a folder mixes several document types. */
 const SOURCE_KIND_PRIORITY: DocumentKind[] = [
-  "pdf",
-  "docx",
-  "odt",
-  "rtf",
-  "srt",
-  "ass",
-  "json",
-  "markdown",
-  "text",
+  'pdf',
+  'docx',
+  'odt',
+  'rtf',
+  'srt',
+  'ass',
+  'json',
+  'markdown',
+  'text',
 ];
 
 export type DiscoveredProject = {
@@ -150,9 +150,9 @@ function pickSourceKind(
 async function collectFiles(
   directoryPath: string,
   recursive: boolean,
-): Promise<{ files: string[]; skipped: DiscoveredProject["skipped"] }> {
+): Promise<{ files: string[]; skipped: DiscoveredProject['skipped'] }> {
   const files: string[] = [];
-  const skipped: DiscoveredProject["skipped"] = [];
+  const skipped: DiscoveredProject['skipped'] = [];
   const queue = [directoryPath];
 
   while (queue.length > 0) {
@@ -170,18 +170,18 @@ async function collectFiles(
     }
 
     for (const entry of entries) {
-      if (entry.type === "directory") {
+      if (entry.type === 'directory') {
         if (SKIP_DIRECTORY_NAMES.has(entry.name.toLowerCase())) {
           skipped.push({
             path: entry.path,
-            reason: "Skipped known output or system directory",
+            reason: 'Skipped known output or system directory',
           });
           continue;
         }
-        if (entry.name.startsWith(".")) {
+        if (entry.name.startsWith('.')) {
           skipped.push({
             path: entry.path,
-            reason: "Skipped hidden directory",
+            reason: 'Skipped hidden directory',
           });
           continue;
         }
@@ -189,10 +189,10 @@ async function collectFiles(
         continue;
       }
 
-      if (entry.name.startsWith(".")) {
+      if (entry.name.startsWith('.')) {
         skipped.push({
           path: entry.path,
-          reason: "Skipped hidden file",
+          reason: 'Skipped hidden file',
         });
         continue;
       }
@@ -215,9 +215,9 @@ export async function discoverLocalizationProject(
 ): Promise<DiscoveredProject> {
   const recursive = options.recursive ?? true;
   const normalized =
-    directoryPath.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "") || ".";
+    directoryPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '') || '.';
 
-  await assertWorkspaceDir(normalized, "Project directory");
+  await assertWorkspaceDir(normalized, 'Project directory');
 
   const { files, skipped } = await collectFiles(normalized, recursive);
   const notes: string[] = [];
@@ -255,35 +255,35 @@ export async function discoverLocalizationProject(
 
   if (sourcePaths.length === 0) {
     notes.push(
-      "No source documents found after setting aside glossary and style-guide files.",
+      'No source documents found after setting aside glossary and style-guide files.',
     );
   } else if (otherKinds.length > 0) {
     notes.push(
-      `Selected ${sourcePaths.length} ${sourceKind} file(s) as sources. Other types were left out: ${otherKinds.join(", ")}. Pass a different subset if that is wrong.`,
+      `Selected ${sourcePaths.length} ${sourceKind} file(s) as sources. Other types were left out: ${otherKinds.join(', ')}. Pass a different subset if that is wrong.`,
     );
   }
 
   if (!glossaryPath) {
     notes.push(
-      "No glossary file found (looked for names like glossary.csv or terms.json). The run can proceed with an empty glossary.",
+      'No glossary file found (looked for names like glossary.csv or terms.json). The run can proceed with an empty glossary.',
     );
   } else if (glossaryCandidates.length > 1) {
     notes.push(
       `Using "${glossaryPath}" as the glossary. Other candidates: ${glossaryCandidates
         .filter((candidate) => candidate !== glossaryPath)
-        .join(", ")}.`,
+        .join(', ')}.`,
     );
   }
 
   if (!styleGuidePath) {
     notes.push(
-      "No style guide found (looked for names like style.md or style-guide.txt).",
+      'No style guide found (looked for names like style.md or style-guide.txt).',
     );
   } else if (styleGuideCandidates.length > 1) {
     notes.push(
       `Using "${styleGuidePath}" as the style guide. Other candidates: ${styleGuideCandidates
         .filter((candidate) => candidate !== styleGuidePath)
-        .join(", ")}.`,
+        .join(', ')}.`,
     );
   }
 

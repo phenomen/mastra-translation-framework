@@ -87,28 +87,13 @@ style guide, and terminology decided in an earlier file is reused in the later o
 
 Or point it at the project directory and let it find the files automatically:
 
-> Translate everything in "game" directory into Spanish
+> Translate documents in "game" directory into Spanish
 
-The agent will ask for anything it still needs. It then starts the run and reports progress as it converts, translates, and reviews each part.
+The agent will ask for anything it still needs. It then starts the run and reports progress as it converts, translates, and reviews each part. Ask it to skip the Editor Agent if you want a faster first-pass translation and save on AI tokens.
 
 ### Direct Workflow
 
-If you prefer filling in a form over chat agent, open Workflows -> **localizeDocumentWorkflow** and enter the same information in the fields:
-
-**Required**
-
-- `sourcePaths` - one or more documents of the same type, for example `["game/rulebook.pdf"]` or `["game/ch1.pdf", "game/ch2.pdf"]`
-- `targetLanguage` - the language to translate into, for example `Spanish` or `pt-BR`
-
-**Optional**
-
-- `glossaryPath` - your glossary file; omit to start with an empty glossary
-- `styleGuidePath` - your style guide file, if you have one
-- `styleGuide` - short instructions typed directly, instead of or in addition to a file
-- `sourceLanguage` - only if you want to override automatic detection
-- `outputPath` - for one document, the result file path; for several documents, a directory where each result is written. Defaults inside the run directory
-- `remoteOCR`: `true` forces Datalab remote OCR, `false` forces local
-  text extraction.
+If you prefer filling in a form over chat agent, open Workflows -> **localizeDocumentWorkflow** and enter information in the fields. Localization Agent is still a prefered way as it can fix issues and resume workflows in case of errors.
 
 ## Subtitles
 
@@ -125,8 +110,8 @@ grew too long for their slot, and continuity between consecutive cues.
 
 ## The Glossary
 
-The glossary is how you keep names and key terms translated the same way everywhere. It is
-optional, but it makes a big difference on long documents.
+The glossary is how you keep names and key terms translated consistently. It is
+optional, but it makes a big difference on long documents or multiple documents.
 
 You can write it as CSV, JSON, Markdown, or a plain text. All of these are understood:
 
@@ -203,9 +188,10 @@ Use these for quick questions. For anything document-sized, use the **Localizati
 
 ## Costs
 
-A full translation of 250-page PDF using `deepseek/deepseek-v4-flash` costs about $5 with $1.5 for OCR and $3.5 for AI translation.
+A full translation of 250-page PDF using `deepseek/deepseek-v4-flash` costs about $4. `google/gemini-3.6-flash` outputs a better quality translation but is more expensive at about $10 for 250-page document. A subtitle file for a single anime episode is < $0.3.
 
 > [!NOTE]
-> Datalab OCR provides $10-20 free credits a month, so you really only have to pay for your AI provider.
+> You can save AI tokens if you ask the Localization Agent to skip the Editor Agent. While the quality may drop slightly but it will also decrease the costs.
 
-A subtitle file for a single anime episode is < $0.3
+> [!NOTE]
+> Datalab OCR provides $10-20 free credits a month, so you really only have to pay for your AI provider. If you need extra OCR volume, you can buy credits there.
