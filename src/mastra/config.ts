@@ -6,7 +6,7 @@ if (!aiModel) {
 
 export const AI_MODEL = aiModel;
 
-export const DEFAULT_MAX_PART_CHARS = 16_000;
+export const DEFAULT_MAX_PART_CHARS = 20_000;
 
 export const DEFAULT_MAX_PAGES_PER_PART = 20;
 
@@ -20,4 +20,4 @@ export const DATALAB_POLL_INTERVAL_MS = 3_000;
 
 export const DATALAB_MAX_WAIT_MS = 15 * 60 * 1_000;
 
-export const LOCALIZATION_RUNS_DIR = 'localization';
+export const TRANSLATION_RUNS_DIR = 'translation';

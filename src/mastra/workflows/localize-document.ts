@@ -25,7 +25,7 @@ import {
   DEFAULT_MAX_PAGES_PER_PART,
   DEFAULT_MAX_PART_CHARS,
   DEFAULT_MIN_PAGES_PER_PART,
-  LOCALIZATION_RUNS_DIR,
+  TRANSLATION_RUNS_DIR,
 } from '../config';
 import { chunkDocument } from '../lib/chunking';
 import {
@@ -58,9 +58,15 @@ import {
   workspaceFileExists,
   writeWorkspaceFile,
 } from '../lib/workspace-paths';
-import { convertPdfToMarkdown } from '../tools/datalab-ocr-tool';
+import {
+  convertPdfToMarkdown,
+  resolveUseRemoteOcr,
+} from '../tools/datalab-ocr-tool';
 import { readGlossaryFile, writeGlossaryFile } from '../tools/glossary-tools';
-import { convertOfficeToMarkdown } from '../tools/office-tools';
+import {
+  convertOfficeToMarkdown,
+  convertPdfToMarkdownLocal,
+} from '../tools/office-tools';
 import { planPdfParts, splitPdfByRanges } from '../tools/pdf-tools';
 
 const documentKindSchema = z.enum([
@@ -89,6 +95,7 @@ const runContextSchema = z.object({
   maxPartChars: z.number(),
   maxPagesPerPart: z.number(),
   minPagesPerPart: z.number(),
+  remoteOCR: z.boolean(),
 });
 
 const sourcePartSchema = z.object({
@@ -175,6 +182,12 @@ const workflowInputSchema = z.object({
   maxPartChars: z.number().int().min(500).optional(),
   maxPagesPerPart: z.number().int().min(1).optional(),
   minPagesPerPart: z.number().int().min(1).optional(),
+  remoteOCR: z
+    .boolean()
+    .optional()
+    .describe(
+      'Use Datalab remote OCR for PDFs. When omitted, remote OCR is used only if DATALAB_API_KEY is set; otherwise local officeparser text extraction is used. Set false to force local extraction even when a key is present.',
+    ),
 });
 
 const workflowOutputSchema = z.object({
@@ -234,7 +247,7 @@ const prepareRunStep = createStep({
     const kind = detectDocumentKind(sourcePath);
     const outputFormat = outputFormatForKind(kind);
 
-    const runDir = path.posix.join(LOCALIZATION_RUNS_DIR, runId);
+    const runDir = path.posix.join(TRANSLATION_RUNS_DIR, runId);
     await ensureWorkspaceDir(runDir);
 
     const glossaryPath = path.posix.join(runDir, 'glossary.json');
@@ -280,20 +293,23 @@ const prepareRunStep = createStep({
       maxPartChars: inputData.maxPartChars ?? DEFAULT_MAX_PART_CHARS,
       maxPagesPerPart: inputData.maxPagesPerPart ?? DEFAULT_MAX_PAGES_PER_PART,
       minPagesPerPart: inputData.minPagesPerPart ?? DEFAULT_MIN_PAGES_PER_PART,
+      remoteOCR: resolveUseRemoteOcr(inputData.remoteOCR),
     };
   },
 });
 
 /**
- * Splits by bookmarks or a verified table of contents, then OCRs each part.
- * OCR markdown is cached under `ocr/` so a retry after a network failure does not
- * re-spend Datalab credits. Each OCR result is then re-chunked under
- * `maxPartChars` on h1/h2 boundaries before translation.
+ * Splits by bookmarks or a verified table of contents, then converts each part
+ * to markdown. Uses Datalab remote OCR when `remoteOCR` is true; otherwise
+ * extracts embedded text locally via officeparser (no OCR). Markdown is cached
+ * under `ocr/` so a retry after a network failure does not re-spend Datalab
+ * credits. Each result is then re-chunked under `maxPartChars` on h1/h2
+ * boundaries before translation.
  */
 const preparePdfPartsStep = createStep({
   id: 'prepare-pdf-parts',
   description:
-    'Plan chapter ranges, split the PDF, convert each part to markdown via OCR, then chunk oversized parts on headings.',
+    'Plan chapter ranges, split the PDF, convert each part to markdown (remote OCR or local text extraction), then chunk oversized parts on headings.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
   retries: 2,
@@ -339,14 +355,23 @@ const preparePdfPartsStep = createStep({
       if (await workspaceFileExists(ocrPath)) {
         markdown = await readWorkspaceText(ocrPath);
       } else {
+        const modeLabel = run.remoteOCR
+          ? 'via remote OCR'
+          : 'via local text extraction';
         await writer?.write(
-          `Converting part ${part.index} of ${splitParts.length} (pages ${part.startPage}-${part.endPage})\n`,
+          `Converting part ${part.index} of ${splitParts.length} (pages ${part.startPage}-${part.endPage}) ${modeLabel}\n`,
         );
-        const outcome = await convertPdfToMarkdown(
-          await readWorkspaceBytes(part.partPath),
-          path.basename(part.partPath),
-        );
-        markdown = outcome.markdown;
+
+        const partBytes = await readWorkspaceBytes(part.partPath);
+        if (run.remoteOCR) {
+          const outcome = await convertPdfToMarkdown(
+            partBytes,
+            path.basename(part.partPath),
+          );
+          markdown = outcome.markdown;
+        } else {
+          markdown = await convertPdfToMarkdownLocal(partBytes);
+        }
         await writeWorkspaceFile(ocrPath, markdown);
       }
 
@@ -379,7 +404,7 @@ const preparePdfPartsStep = createStep({
 
     if (parts.length === 0) {
       throw new Error(
-        `Document "${run.sourcePath}" produced no translatable content after OCR.`,
+        `Document "${run.sourcePath}" produced no translatable content after ${run.remoteOCR ? 'OCR' : 'local text extraction'}.`,
       );
     }
 
@@ -918,6 +943,7 @@ const assembleOutputStep = createStep({
           outputFormat: run.outputFormat,
           targetLanguage: run.targetLanguage,
           sourceLanguage: run.sourceLanguage ?? null,
+          remoteOCR: run.kind === 'pdf' ? run.remoteOCR : null,
           partSource,
           partCount: parts.length,
           glossaryTermCount: glossary.terms.length,

@@ -33,6 +33,28 @@ export async function convertOfficeToMarkdown(
   return markdown;
 }
 
+/**
+ * Extracts embedded text from a PDF to markdown via officeparser.
+ * OCR is intentionally disabled — scanned/image-only PDFs will yield little or no text.
+ */
+export async function convertPdfToMarkdownLocal(
+  bytes: Buffer,
+): Promise<string> {
+  const { value } = await OfficeConverter.convert(bytes, 'md', {
+    parseConfig: { fileType: 'pdf', ocr: false },
+    generatorConfig: { includeImages: false },
+  });
+
+  const markdown = typeof value === 'string' ? value : '';
+  if (!markdown.trim()) {
+    throw new Error(
+      'officeparser returned an empty markdown result for PDF. The file may be scanned or image-only; enable remote OCR (DATALAB_API_KEY / remoteOCR) for those.',
+    );
+  }
+
+  return markdown;
+}
+
 export const convertOfficeToMarkdownTool = createTool({
   id: 'convert_office_to_markdown',
   description:

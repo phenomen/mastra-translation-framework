@@ -35,8 +35,7 @@ npm/bun install
 - `AI_MODEL` - the model that does the translating. The name has to match the
   provider whose key you supplied. Available providers are listed at
   [mastra.ai/models](https://mastra.ai/models/).
-- `DATALAB_API_KEY` - only needed if you want to translate PDFs. Get one at
-  [datalab.to](https://www.datalab.to). Everything else works without it.
+- `DATALAB_API_KEY` - optional. Enables remote OCR for PDFs (significantly better accuracy). Without it, PDFs use local text extraction. Get a key at [datalab.to](https://www.datalab.to).
 
 3. Start the app:
 
@@ -90,6 +89,8 @@ If you prefer filling in a form over chat agent, open Workflows -> **localizeDoc
 - `styleGuide` - short instructions typed directly, instead of or in addition to a file
 - `sourceLanguage` - only if you want to override automatic detection
 - `outputPath` - only if you want the result somewhere specific
+- `remoteOCR`: `true` forces Datalab remote OCR, `false` forces local
+  text extraction.
 
 ## Subtitles
 

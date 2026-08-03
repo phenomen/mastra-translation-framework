@@ -36,10 +36,20 @@ function requireApiKey(): string {
   const apiKey = process.env.DATALAB_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'DATALAB_API_KEY is not set. Add it to .env to run PDF OCR.',
+      'DATALAB_API_KEY is not set. Add it to .env to run remote PDF OCR, or set remoteOCR to false to use local text extraction.',
     );
   }
   return apiKey;
+}
+
+/**
+ * Remote Datalab OCR when `remoteOCR` is true, local officeparser when false.
+ * When omitted, use remote OCR only if `DATALAB_API_KEY` is set.
+ */
+export function resolveUseRemoteOcr(remoteOCR?: boolean): boolean {
+  if (remoteOCR === true) return true;
+  if (remoteOCR === false) return false;
+  return Boolean(process.env.DATALAB_API_KEY?.trim());
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
