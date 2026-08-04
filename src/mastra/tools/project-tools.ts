@@ -6,6 +6,7 @@ import { discoverLocalizationProject } from '../lib/discover-project';
 const documentKindSchema = z.enum([
   'pdf',
   'json',
+  'html',
   'markdown',
   'text',
   'srt',

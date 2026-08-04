@@ -11,12 +11,12 @@ import {
 export const readDocumentTool = createTool({
   id: 'read_document',
   description:
-    'Read a document from the workspace and report its kind. Text, markdown, JSON, and subtitle documents return their content; PDFs and office documents (DOCX, RTF, ODT) return only metadata because they must go through their conversion tools.',
+    'Read a document from the workspace and report its kind. Text, markdown, JSON, HTML, and subtitle documents return their content; PDFs and office documents (DOCX, RTF, ODT) return only metadata because they must go through their conversion tools.',
   inputSchema: z.object({
     documentPath: z
       .string()
       .describe(
-        'Workspace-relative path to the document (.txt, .md, .json, .srt, .ass, .pdf, .docx, .rtf, .odt).',
+        'Workspace-relative path to the document (.txt, .md, .json, .html, .htm, .srt, .ass, .pdf, .docx, .rtf, .odt).',
       ),
   }),
   outputSchema: z.object({
@@ -24,6 +24,7 @@ export const readDocumentTool = createTool({
     kind: z.enum([
       'pdf',
       'json',
+      'html',
       'markdown',
       'text',
       'srt',

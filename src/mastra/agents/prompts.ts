@@ -179,3 +179,41 @@ Return one entry per input, with the pointer copied exactly.
 === ENTRIES (JSON) ===
 ${JSON.stringify(entries, null, 2)}`;
 }
+
+export function buildHtmlTranslationPrompt(
+  context: PromptContext,
+  part: PartContext,
+  entries: JsonEntryInput[],
+): string {
+  return `${header(context, part)}
+
+Translate these HTML text segments into ${context.targetLanguage}.
+
+Each entry is a text node or a translatable attribute value (alt, title, placeholder, aria-label, meta description, and similar). Tags, attribute names, scripts, styles, and code blocks stay on disk and are never sent here.
+
+Return one entry per input string, with the pointer copied exactly and only the value translated. Never translate or alter a pointer. Never add HTML tags, entities, or markup to a value — plain text only; escaping is handled when the document is rebuilt.
+
+HTML rules:
+- Adjacent entries often form continuous prose split by inline tags. Read the whole batch before translating so the sentence stays coherent, but keep each segment's share of that sentence inside its own entry.
+- Preserve leading and trailing whitespace on a value when it is significant (for example a space that separates words across an inline tag).
+- Leave values that are purely a URL, email address, code identifier, or number unchanged.
+- Do not invent attribute values or alt text that were not in the source.
+
+=== ENTRIES (JSON) ===
+${JSON.stringify(entries, null, 2)}`;
+}
+
+export function buildHtmlReviewPrompt(
+  context: PromptContext,
+  part: PartContext,
+  entries: JsonReviewEntry[],
+): string {
+  return `${header(context, part)}
+
+Review these translated HTML text segments. Pay particular attention to glossary terms and to continuity across adjacent segments that form one sentence, since the glossary above is final and grew after some of these strings were translated.
+
+Return one entry per input, with the pointer copied exactly. Corrected values must stay plain text with no HTML tags or entities added.
+
+=== ENTRIES (JSON) ===
+${JSON.stringify(entries, null, 2)}`;
+}

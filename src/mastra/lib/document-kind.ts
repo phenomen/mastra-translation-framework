@@ -3,6 +3,7 @@ import path from 'node:path';
 export type DocumentKind =
   | 'pdf'
   | 'json'
+  | 'html'
   | 'markdown'
   | 'text'
   | 'srt'
@@ -11,7 +12,13 @@ export type DocumentKind =
   | 'rtf'
   | 'odt';
 
-export type OutputFormat = 'markdown' | 'text' | 'json' | 'srt' | 'ass';
+export type OutputFormat =
+  | 'markdown'
+  | 'text'
+  | 'json'
+  | 'html'
+  | 'srt'
+  | 'ass';
 
 export const SUBTITLE_KINDS = ['srt', 'ass'] as const;
 
@@ -35,6 +42,7 @@ export function detectDocumentKind(filename: string): DocumentKind {
 
   if (extension === '.pdf') return 'pdf';
   if (extension === '.json') return 'json';
+  if (extension === '.html' || extension === '.htm') return 'html';
   if (extension === '.srt') return 'srt';
   // SSA is the older revision of the same container; the dialogue lines that
   // get translated are laid out identically.
@@ -53,6 +61,7 @@ const FORMAT_BY_KIND: Record<DocumentKind, OutputFormat> = {
   markdown: 'markdown',
   text: 'text',
   json: 'json',
+  html: 'html',
   srt: 'srt',
   ass: 'ass',
   docx: 'markdown',
@@ -68,6 +77,7 @@ const EXTENSION_BY_FORMAT: Record<OutputFormat, string> = {
   markdown: '.md',
   text: '.txt',
   json: '.json',
+  html: '.html',
   srt: '.srt',
   ass: '.ass',
 };
@@ -76,9 +86,12 @@ export function outputExtension(
   format: OutputFormat,
   sourcePath?: string,
 ): string {
-  // Subtitles are written back in the exact container they came from, so a
-  // `.ssa` input does not silently become `.ass`.
-  if (sourcePath && (format === 'srt' || format === 'ass')) {
+  // Subtitles and HTML are written back with the same extension they arrived
+  // with, so `.ssa` does not become `.ass` and `.htm` does not become `.html`.
+  if (
+    sourcePath &&
+    (format === 'srt' || format === 'ass' || format === 'html')
+  ) {
     const extension = path.extname(sourcePath).toLowerCase();
     if (extension) return extension;
   }

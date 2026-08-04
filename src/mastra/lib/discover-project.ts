@@ -65,6 +65,7 @@ const SOURCE_KIND_PRIORITY: DocumentKind[] = [
   'rtf',
   'srt',
   'ass',
+  'html',
   'json',
   'markdown',
   'text',

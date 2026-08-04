@@ -15,6 +15,7 @@ It is meant for documents where consistency matters: documentation, subtitles, b
 | Markdown   | Markdown   |
 | Plain text | Plain text |
 | JSON       | JSON       |
+| HTML       | HTML       |
 | SRT        | SRT        |
 | ASS/SSA    | ASS        |
 
@@ -58,20 +59,19 @@ src/mastra/public/workspace/
 
 Put your documents, glossaries, and style guides in there before starting a translation. You
 can use subfolders to keep projects apart, for example
-`workspace/game/rulebook.pdf`. When you tell the app which file to use, give the path
-without the workspace part, so `game/rulebook.pdf`.
+`workspace/game/rulebook.pdf`.
 
 You can also point the Localization Agent at a whole project folder. Name the files so they
 are easy to identify:
 
-| Role        | Example names                                     |
-| ----------- | ------------------------------------------------- |
-| Sources     | `ch1.pdf`, `ch2.pdf`, `episode-01.srt`, `book.md` |
-| Glossary    | `glossary.csv`, `glossary.json`, `terms.csv`      |
-| Style Guide | `style.md`, `style-guide.txt`, `guide.md`         |
+| Role        | Example names                                              |
+| ----------- | ---------------------------------------------------------- |
+| Sources     | `document.pdf`, `page.html`, `episode-01.srt`, `source.md` |
+| Glossary    | `glossary.csv`, `glossary.json`, `terms.csv`               |
+| Style Guide | `style.md`, `style-guide.txt`, `guide.md`                  |
 
 > [!WARNING]
-> The app can only see files inside this folder, and it will never touch anything outside it.
+> The app can only see files inside `workspace` directory, and it will never touch anything outside it.
 
 ## Translating a Document
 
@@ -104,9 +104,6 @@ document. Point the agent or the workflow at them the same way:
 
 Only the spoken text is ever sent to the translator. Timings, cue numbering, style
 definitions, script headers, and positioning are preserved as-is.
-
-The editor pass adds two checks on top of the usual ones: reading speed, flagging cues that
-grew too long for their slot, and continuity between consecutive cues.
 
 ## The Glossary
 

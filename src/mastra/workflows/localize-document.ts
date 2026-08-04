@@ -4,6 +4,8 @@ import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { z } from 'zod';
 
 import {
+  buildHtmlReviewPrompt,
+  buildHtmlTranslationPrompt,
   buildJsonReviewPrompt,
   buildJsonTranslationPrompt,
   buildSubtitleReviewPrompt,
@@ -43,6 +45,7 @@ import {
   parseGlossary,
   type GlossaryTerm,
 } from '../lib/glossary';
+import { batchHtmlEntries, flattenHtml, rebuildHtml } from '../lib/html';
 import {
   batchEntries,
   flattenStrings,
@@ -72,6 +75,7 @@ import { planPdfParts, splitPdfByRanges } from '../tools/pdf-tools';
 const documentKindSchema = z.enum([
   'pdf',
   'json',
+  'html',
   'markdown',
   'text',
   'srt',
@@ -80,7 +84,14 @@ const documentKindSchema = z.enum([
   'rtf',
   'odt',
 ]);
-const outputFormatSchema = z.enum(['markdown', 'text', 'json', 'srt', 'ass']);
+const outputFormatSchema = z.enum([
+  'markdown',
+  'text',
+  'json',
+  'html',
+  'srt',
+  'ass',
+]);
 
 const runContextSchema = z.object({
   runDir: z.string(),
@@ -160,7 +171,7 @@ const workflowInputSchema = z.object({
     .array(z.string())
     .min(1)
     .describe(
-      'One or more documents of the same type (.md, .pdf, .txt, .json, .srt, .ass, .docx, .rtf, .odt). A single file is just an array of one. All files share the glossary and style guide; terminology established in earlier files applies to later ones.',
+      'One or more documents of the same type (.md, .pdf, .txt, .json, .html, .htm, .srt, .ass, .docx, .rtf, .odt). A single file is just an array of one. All files share the glossary and style guide; terminology established in earlier files applies to later ones.',
     ),
   glossaryPath: z
     .string()
@@ -768,6 +779,65 @@ const flattenJsonPartsStep = createStep({
 });
 
 /**
+ * Only text nodes and selected attributes become translatable content. Tags,
+ * scripts, styles, and every other region stay on disk and are re-read at
+ * assembly time, so the output is the source file with its strings swapped out.
+ */
+const flattenHtmlPartsStep = createStep({
+  id: 'flatten-html-parts',
+  description:
+    'Extract translatable HTML text nodes and attributes into batches.',
+  inputSchema: runContextSchema,
+  outputSchema: partsStageSchema,
+  execute: async ({ inputData: run, writer }) => {
+    const parts: SourcePart[] = [];
+    let nextIndex = 1;
+
+    for (
+      let sourceIndex = 0;
+      sourceIndex < run.sourcePaths.length;
+      sourceIndex++
+    ) {
+      const sourcePath = run.sourcePaths[sourceIndex]!;
+
+      if (run.sourcePaths.length > 1) {
+        await writer?.write(
+          `Extracting HTML ${sourceIndex + 1} of ${run.sourcePaths.length}: ${sourcePath}\n`,
+        );
+      }
+
+      const raw = await readWorkspaceText(sourcePath);
+      const entries = flattenHtml(raw);
+
+      if (entries.length === 0) {
+        throw new Error(`"${sourcePath}" contains no translatable HTML text.`);
+      }
+
+      const batches = batchHtmlEntries(entries, run.maxPartChars);
+      for (const batch of batches) {
+        const index = nextIndex;
+        nextIndex += 1;
+        parts.push({
+          index,
+          sourcePath,
+          sourceIndex,
+          entries: batch,
+        });
+      }
+    }
+
+    return {
+      run,
+      partSource:
+        run.sourcePaths.length > 1
+          ? 'multi-document:html-batches'
+          : 'html-batches',
+      parts,
+    };
+  },
+});
+
+/**
  * Only the dialogue text becomes translatable content. Timings, cue numbering,
  * styles, and every other field stay on disk and are re-read at assembly time,
  * so the output is the source file with its text swapped out.
@@ -842,6 +912,7 @@ const selectPartsStageStep = createStep({
     'prepare-pdf-parts': partsStageSchema.optional(),
     'prepare-office-parts': partsStageSchema.optional(),
     'flatten-json-parts': partsStageSchema.optional(),
+    'flatten-html-parts': partsStageSchema.optional(),
     'parse-subtitle-parts': partsStageSchema.optional(),
     'chunk-text-parts': partsStageSchema.optional(),
   }),
@@ -852,6 +923,7 @@ const selectPartsStageStep = createStep({
       inputData['prepare-pdf-parts'] ??
       inputData['prepare-office-parts'] ??
       inputData['flatten-json-parts'] ??
+      inputData['flatten-html-parts'] ??
       inputData['parse-subtitle-parts'] ??
       inputData['chunk-text-parts'];
 
@@ -907,6 +979,35 @@ const translatePartsStep = createStep({
             pointer: entry.pointer,
             // A pointer the model failed to return keeps its source text rather
             // than silently disappearing from the bundle.
+            translation: byPointer.get(entry.pointer) ?? entry.value,
+          })),
+        });
+
+        await appendProposedTerms(
+          run.glossaryPath,
+          glossary.terms,
+          output.newTerms ?? [],
+        );
+        continue;
+      }
+
+      if (run.kind === 'html') {
+        const entries = part.entries ?? [];
+        const response = await translator.generate(
+          buildHtmlTranslationPrompt(context, partContext, entries),
+          { structuredOutput: { schema: jsonTranslationSchema } },
+        );
+        const output = response.object;
+        const byPointer = new Map(
+          output.entries.map((entry) => [entry.pointer, entry.translation]),
+        );
+
+        translated.push({
+          index: part.index,
+          entries: entries.map((entry) => ({
+            pointer: entry.pointer,
+            // A pointer the model failed to return keeps its source text rather
+            // than leaving a hole in the page.
             translation: byPointer.get(entry.pointer) ?? entry.value,
           })),
         });
@@ -1074,6 +1175,40 @@ const reviewPartsStep = createStep({
         continue;
       }
 
+      if (run.kind === 'html') {
+        const sourceByPointer = new Map(
+          (source?.entries ?? []).map((entry) => [entry.pointer, entry.value]),
+        );
+        const reviewEntries = (part.entries ?? []).map((entry) => ({
+          pointer: entry.pointer,
+          source: sourceByPointer.get(entry.pointer) ?? '',
+          translation: entry.translation,
+        }));
+
+        const response = await editor.generate(
+          buildHtmlReviewPrompt(context, partContext, reviewEntries),
+          { structuredOutput: { schema: jsonReviewSchema } },
+        );
+        const output = response.object;
+        const corrected = new Map(
+          output.entries.map((entry) => [
+            entry.pointer,
+            entry.correctedTranslation,
+          ]),
+        );
+
+        reviewed.push({
+          index: part.index,
+          entries: (part.entries ?? []).map((entry) => ({
+            pointer: entry.pointer,
+            translation: corrected.get(entry.pointer) ?? entry.translation,
+          })),
+        });
+
+        recordIssues(part.index, output.issues ?? []);
+        continue;
+      }
+
       if (isSubtitleKind(run.kind)) {
         const sourceById = new Map(
           (source?.cues ?? []).map((cue) => [cue.id, cue]),
@@ -1182,6 +1317,14 @@ const assembleOutputStep = createStep({
             translations.set(entry.pointer, entry.translation);
         }
         content = `${JSON.stringify(rebuildWithTranslations(original, translations), null, 2)}\n`;
+      } else if (run.kind === 'html') {
+        const original = await readWorkspaceText(sourcePath);
+        const translations = new Map<string, string>();
+        for (const part of documentReviewed) {
+          for (const entry of part.entries ?? [])
+            translations.set(entry.pointer, entry.translation);
+        }
+        content = rebuildHtml(original, translations);
       } else if (isSubtitleKind(run.kind)) {
         const original = await readWorkspaceText(sourcePath);
         const translations = new Map<string, string>();
@@ -1261,7 +1404,7 @@ const assembleOutputStep = createStep({
 export const localizeDocumentWorkflow = createWorkflow({
   id: 'localizeDocumentWorkflow',
   description:
-    'Localize one or more plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then optionally review the result for correctness and consistency.',
+    'Localize one or more plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, HTML, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then optionally review the result for correctness and consistency.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,
 })
@@ -1276,6 +1419,7 @@ export const localizeDocumentWorkflow = createWorkflow({
       prepareOfficePartsStep,
     ],
     [async ({ inputData }) => inputData.kind === 'json', flattenJsonPartsStep],
+    [async ({ inputData }) => inputData.kind === 'html', flattenHtmlPartsStep],
     [
       async ({ inputData }) =>
         inputData.kind === 'srt' || inputData.kind === 'ass',

@@ -6,6 +6,7 @@ import { AI_MODEL } from '../config';
 import { ocrTools } from '../tools/datalab-ocr-tool';
 import { documentTools } from '../tools/document-tools';
 import { glossaryTools } from '../tools/glossary-tools';
+import { htmlTools } from '../tools/html-tools';
 import { officeTools } from '../tools/office-tools';
 import { pdfTools } from '../tools/pdf-tools';
 import { projectTools } from '../tools/project-tools';
@@ -39,11 +40,13 @@ Optional:
 
 If the target language is missing, ask for it. Do not guess. Mention when a glossary or style guide was or was not found, since both materially change the result, but proceed without them if the user has none.
 
-Supported inputs are plain text, markdown, PDF, office documents (DOCX, RTF, ODT), JSON, and subtitles. The output format is fixed by the input: PDF, markdown, DOCX, RTF, and ODT produce markdown, plain text produces plain text, JSON produces JSON, SRT produces SRT, and ASS produces ASS. There is nothing to choose or ask about. JSON is treated as an i18n resource bundle: keys and structure are preserved and only string values are translated.
+Supported inputs are plain text, markdown, PDF, office documents (DOCX, RTF, ODT), JSON, HTML, and subtitles. The output format is fixed by the input: PDF, markdown, DOCX, RTF, and ODT produce markdown, plain text produces plain text, JSON produces JSON, HTML produces HTML, SRT produces SRT, and ASS produces ASS. There is nothing to choose or ask about. JSON is treated as an i18n resource bundle: keys and structure are preserved and only string values are translated. HTML keeps its markup intact: only text nodes and selected attributes (alt, title, placeholder, aria-label, meta descriptions, and similar) are translated; scripts, styles, and code blocks are left alone.
 
 PDFs use Datalab remote OCR when DATALAB_API_KEY is set, otherwise local officeparser text extraction (no OCR). Pass remoteOCR true/false on the workflow to force either mode.
 
 Office documents (Word .docx, Rich Text .rtf, and OpenDocument Text .odt) are converted to markdown locally before translation. Use convert_office_to_markdown when you want to inspect the extracted markdown before committing to a run. Never rewrite an office file by hand with write_document.
+
+HTML pages (.html, .htm) are rebuilt from the original file with translated strings substituted in place. Use inspect_html when you want to confirm how many translatable segments a page holds before committing to a run. Never rewrite an HTML file by hand with write_document, since that risks breaking its markup.
 
 Subtitles are SubRip (.srt) and Advanced SubStation Alpha (.ass or .ssa). Only the dialogue text is translated; timings, cue numbering, styles, script headers, and positioning stay exactly as they were, so the result stays in sync with the video. Use inspect_subtitles when you want to confirm a file parses and how many cues it holds before committing to a run, and read_subtitle_cues to look at specific cues. Never rewrite a subtitle file by hand with write_document, since that risks breaking its timings.
 
@@ -60,6 +63,7 @@ When a run finishes, report each output path, how many documents and parts were 
     ...glossaryTools,
     ...documentTools,
     ...subtitleTools,
+    ...htmlTools,
     ...pdfTools,
     ...ocrTools,
     ...officeTools,

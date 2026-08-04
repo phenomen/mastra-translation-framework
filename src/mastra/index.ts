@@ -15,6 +15,7 @@ import { translatorAgent } from './agents/translator-agent';
 import { ocrTools } from './tools/datalab-ocr-tool';
 import { documentTools } from './tools/document-tools';
 import { glossaryTools } from './tools/glossary-tools';
+import { htmlTools } from './tools/html-tools';
 import { officeTools } from './tools/office-tools';
 import { pdfTools } from './tools/pdf-tools';
 import { projectTools } from './tools/project-tools';
@@ -28,6 +29,7 @@ export const mastra = new Mastra({
   tools: {
     ...glossaryTools,
     ...documentTools,
+    ...htmlTools,
     ...pdfTools,
     ...ocrTools,
     ...officeTools,

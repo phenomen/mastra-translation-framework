@@ -85,7 +85,7 @@ export function rebuildWithTranslations(
 export function batchEntries(
   entries: JsonStringEntry[],
   maxChars: number,
-  maxEntries = 60,
+  maxEntries = 100,
 ): JsonStringEntry[][] {
   const batches: JsonStringEntry[][] = [];
   let current: JsonStringEntry[] = [];

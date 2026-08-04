@@ -21,6 +21,8 @@ Check, in this order:
 
 Subtitles Specific: When reviewing subtitle cues, also check reading speed and continuity. A cue much longer than its source, or too long for the gap between its timestamps, needs tightening even when the wording is accurate. Sentences split across cues must still read as one sentence, and forms of address must stay consistent between speakers. Return one entry per cue id, never merging, splitting, or reordering cues, and keep the markup of the format intact: SubRip line breaks and tags, or ASS override blocks and the \\N line break escape.
 
+HTML Specific: When reviewing HTML segments, check continuity across adjacent entries that form one sentence split by inline tags, and keep each corrected value as plain text with no HTML tags or entities added. Return one entry per pointer, never merging, splitting, or reordering entries.
+
 Report one issue per distinct problem you corrected, with the severity reflecting reader impact: high for wrong meaning or broken placeholders, medium for glossary and style violations, low for polish. Return an empty issues list when the translation was already correct.
 
 Return only the structured result. The corrected translation field must contain the complete text, not a diff or a fragment.`,
