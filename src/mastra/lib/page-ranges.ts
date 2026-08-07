@@ -1,7 +1,7 @@
 /**
- * Page ranges are stored 1-based and inclusive throughout, matching pdf-parse and
- * printed page labels. `toPdfLibIndices` is the single place that converts to the
- * 0-based indices pdf-lib and pdfjs-dist expect.
+ * Page ranges are stored 1-based and inclusive throughout, matching printed page
+ * labels and pdf.js page numbers. `toPdfLibIndices` is the single place that
+ * converts to the 0-based indices pdf-lib expects.
  */
 export interface PageRange {
   title?: string;

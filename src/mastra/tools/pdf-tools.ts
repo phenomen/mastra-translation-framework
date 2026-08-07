@@ -2,7 +2,6 @@ import path from 'node:path';
 
 import { createTool } from '@mastra/core/tools';
 import { PDFDocument } from 'pdf-lib';
-import { PDFParse } from 'pdf-parse';
 import { z } from 'zod';
 
 import {
@@ -42,6 +41,16 @@ interface PageText {
   text: string;
 }
 
+type OutlineItem = {
+  title: string;
+  dest: string | unknown[] | null;
+  items?: unknown[];
+};
+type PdfDocumentProxy = Awaited<ReturnType<PdfjsGetDocument>['promise']>;
+type PdfTextContent = Awaited<
+  ReturnType<Awaited<ReturnType<PdfDocumentProxy['getPage']>>['getTextContent']>
+>;
+
 /**
  * pdf.js may detach the ArrayBuffer it is handed, so every consumer gets its own
  * copy of the bytes.
@@ -52,41 +61,10 @@ function toOwnedBytes(bytes: Buffer): Uint8Array {
   );
 }
 
-async function withParser<T>(
+async function withPdfDocument<T>(
   bytes: Buffer,
-  run: (parser: PDFParse) => Promise<T>,
+  run: (doc: PdfDocumentProxy) => Promise<T>,
 ): Promise<T> {
-  const parser = new PDFParse({ data: toOwnedBytes(bytes) });
-  try {
-    return await run(parser);
-  } finally {
-    await parser.destroy();
-  }
-}
-
-export async function extractPdfPages(
-  bytes: Buffer,
-  selection: { pages?: number[]; firstPage?: number; lastPage?: number } = {},
-): Promise<{ totalPages: number; pages: PageText[] }> {
-  return withParser(bytes, async (parser) => {
-    const result = await parser.getText({
-      // The default joiner injects "-- 3 of 40 --" markers into the text.
-      pageJoiner: '',
-      ...(selection.pages ? { partial: selection.pages } : {}),
-      ...(selection.firstPage ? { first: selection.firstPage } : {}),
-      ...(selection.lastPage ? { last: selection.lastPage } : {}),
-    });
-
-    return {
-      totalPages: result.total,
-      pages: result.pages.map((page) => ({ num: page.num, text: page.text })),
-    };
-  });
-}
-
-async function readOutlineStarts(
-  bytes: Buffer,
-): Promise<{ totalPages: number; starts: OutlineStart[] }> {
   const { getDocument } = await loadPdfjs();
   const loadingTask = getDocument({
     data: toOwnedBytes(bytes),
@@ -94,7 +72,90 @@ async function readOutlineStarts(
   });
 
   try {
-    const doc = await loadingTask.promise;
+    return await run(await loadingTask.promise);
+  } finally {
+    await loadingTask.destroy();
+  }
+}
+
+/** Join pdf.js text items, keeping EOL markers so TOC lines stay parseable. */
+function textContentToString(content: PdfTextContent): string {
+  const parts: string[] = [];
+
+  for (const item of content.items) {
+    if (!('str' in item)) continue;
+    parts.push(item.str);
+    parts.push(item.hasEOL ? '\n' : ' ');
+  }
+
+  return parts
+    .join('')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function resolveSelectedPages(
+  totalPages: number,
+  selection: { pages?: number[]; firstPage?: number; lastPage?: number },
+): number[] {
+  if (selection.pages?.length) {
+    return unique(
+      selection.pages.filter((page) => page >= 1 && page <= totalPages),
+    );
+  }
+
+  const { firstPage, lastPage } = selection;
+
+  // Match former pdf-parse semantics: first alone = first N pages, last alone =
+  // last N pages, both together = inclusive range firstPage..lastPage.
+  let from = 1;
+  let to = totalPages;
+
+  if (firstPage !== undefined && lastPage !== undefined) {
+    from = firstPage;
+    to = lastPage;
+  } else if (firstPage !== undefined) {
+    from = 1;
+    to = firstPage;
+  } else if (lastPage !== undefined) {
+    from = totalPages - lastPage + 1;
+    to = totalPages;
+  }
+
+  from = Math.max(1, Math.min(from, totalPages));
+  to = Math.max(from, Math.min(to, totalPages));
+  return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+}
+
+export async function extractPdfPages(
+  bytes: Buffer,
+  selection: { pages?: number[]; firstPage?: number; lastPage?: number } = {},
+): Promise<{ totalPages: number; pages: PageText[] }> {
+  return withPdfDocument(bytes, async (doc) => {
+    const totalPages = doc.numPages;
+    const pageNumbers = resolveSelectedPages(totalPages, selection);
+    const pages: PageText[] = [];
+
+    for (const num of pageNumbers) {
+      const page = await doc.getPage(num);
+      try {
+        const content = await page.getTextContent();
+        pages.push({ num, text: textContentToString(content) });
+      } finally {
+        page.cleanup();
+      }
+    }
+
+    return { totalPages, pages };
+  });
+}
+
+async function readOutlineStarts(
+  bytes: Buffer,
+): Promise<{ totalPages: number; starts: OutlineStart[] }> {
+  return withPdfDocument(bytes, async (doc) => {
     const totalPages = doc.numPages;
     const outline = await doc.getOutline();
     if (!outline || outline.length === 0) return { totalPages, starts: [] };
@@ -114,17 +175,8 @@ async function readOutlineStarts(
     }
 
     return { totalPages, starts };
-  } finally {
-    await loadingTask.destroy();
-  }
+  });
 }
-
-type OutlineItem = {
-  title: string;
-  dest: string | unknown[] | null;
-  items?: unknown[];
-};
-type PdfDocumentProxy = Awaited<ReturnType<PdfjsGetDocument>['promise']>;
 
 async function resolveOutlineLevel(
   doc: PdfDocumentProxy,
@@ -407,13 +459,17 @@ export const extractPdfTextTool = createTool({
       .int()
       .min(1)
       .optional()
-      .describe('Extract only the first N pages.'),
+      .describe(
+        'Alone: extract the first N pages. With lastPage: start of an inclusive range.',
+      ),
     lastPage: z
       .number()
       .int()
       .min(1)
       .optional()
-      .describe('With firstPage, an inclusive range.'),
+      .describe(
+        'Alone: extract the last N pages. With firstPage: end of an inclusive range.',
+      ),
   }),
   outputSchema: z.object({
     totalPages: z.number(),

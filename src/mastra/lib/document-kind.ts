@@ -8,7 +8,9 @@ export type DocumentKind =
   | 'text'
   | 'srt'
   | 'ass'
+  | 'doc'
   | 'docx'
+  | 'epub'
   | 'rtf'
   | 'odt';
 
@@ -28,13 +30,13 @@ export function isSubtitleKind(kind: DocumentKind): kind is SubtitleKind {
   return kind === 'srt' || kind === 'ass';
 }
 
-/** Office documents converted to markdown via officeparser before translation. */
-export const OFFICE_KINDS = ['docx', 'rtf', 'odt'] as const;
+/** Binary documents converted to markdown via @firecrawl/anydoc before translation. */
+export const OFFICE_KINDS = ['doc', 'docx', 'epub', 'rtf', 'odt'] as const;
 
 export type OfficeKind = (typeof OFFICE_KINDS)[number];
 
 export function isOfficeKind(kind: DocumentKind): kind is OfficeKind {
-  return kind === 'docx' || kind === 'rtf' || kind === 'odt';
+  return (OFFICE_KINDS as readonly string[]).includes(kind);
 }
 
 export function detectDocumentKind(filename: string): DocumentKind {
@@ -48,6 +50,8 @@ export function detectDocumentKind(filename: string): DocumentKind {
   // get translated are laid out identically.
   if (extension === '.ass' || extension === '.ssa') return 'ass';
   if (extension === '.docx') return 'docx';
+  if (extension === '.doc') return 'doc';
+  if (extension === '.epub') return 'epub';
   if (extension === '.rtf') return 'rtf';
   if (extension === '.odt') return 'odt';
   if (extension === '.md' || extension === '.markdown' || extension === '.mdx')
@@ -64,7 +68,9 @@ const FORMAT_BY_KIND: Record<DocumentKind, OutputFormat> = {
   html: 'html',
   srt: 'srt',
   ass: 'ass',
+  doc: 'markdown',
   docx: 'markdown',
+  epub: 'markdown',
   rtf: 'markdown',
   odt: 'markdown',
 };

@@ -11,7 +11,9 @@ const documentKindSchema = z.enum([
   'text',
   'srt',
   'ass',
+  'doc',
   'docx',
+  'epub',
   'rtf',
   'odt',
 ]);

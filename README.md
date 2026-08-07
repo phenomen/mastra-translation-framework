@@ -9,15 +9,16 @@ It is meant for documents where consistency matters: documentation, subtitles, b
 | Input      | Output     |
 | ---------- | ---------- |
 | PDF        | Markdown   |
-| DOCX       | Markdown   |
+| DOC, DOCX  | Markdown   |
 | RTF        | Markdown   |
 | ODT        | Markdown   |
+| EPUB       | Markdown   |
 | Markdown   | Markdown   |
 | Plain text | Plain text |
 | JSON       | JSON       |
 | HTML       | HTML       |
 | SRT        | SRT        |
-| ASS/SSA    | ASS        |
+| ASS, SSA   | ASS        |
 
 ## Setup
 

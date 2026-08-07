@@ -5,8 +5,8 @@ import { z } from 'zod';
 
 import {
   DATALAB_BASE_URL,
-  DATALAB_MAX_WAIT_MS,
-  DATALAB_POLL_INTERVAL_MS,
+  OCR_MAX_WAIT_MS,
+  OCR_POLL_INTERVAL_MS,
 } from '../config';
 import { readWorkspaceBytes } from '../lib/workspace-paths';
 
@@ -43,7 +43,7 @@ function requireApiKey(): string {
 }
 
 /**
- * Remote Datalab OCR when `remoteOCR` is true, local officeparser when false.
+ * Remote Datalab OCR when `remoteOCR` is true, local @firecrawl/anydoc when false.
  * When omitted, use remote OCR only if `DATALAB_API_KEY` is set.
  */
 export function resolveUseRemoteOcr(remoteOCR?: boolean): boolean {
@@ -113,7 +113,7 @@ async function pollForResult(
   apiKey: string,
   checkUrl: string,
 ): Promise<ResultResponse> {
-  const deadline = Date.now() + DATALAB_MAX_WAIT_MS;
+  const deadline = Date.now() + OCR_MAX_WAIT_MS;
 
   while (Date.now() < deadline) {
     const response = await fetch(checkUrl, {
@@ -121,7 +121,7 @@ async function pollForResult(
     });
 
     if (response.status === 429) {
-      await sleep(DATALAB_POLL_INTERVAL_MS * 5);
+      await sleep(OCR_POLL_INTERVAL_MS * 5);
       continue;
     }
 
@@ -134,11 +134,11 @@ async function pollForResult(
     const payload = (await response.json()) as ResultResponse;
     if (payload.status === 'complete') return payload;
 
-    await sleep(DATALAB_POLL_INTERVAL_MS);
+    await sleep(OCR_POLL_INTERVAL_MS);
   }
 
   throw new Error(
-    `Datalab conversion did not complete within ${Math.round(DATALAB_MAX_WAIT_MS / 60_000)} minutes.`,
+    `Datalab conversion did not complete within ${Math.round(OCR_MAX_WAIT_MS / 60_000)} minutes.`,
   );
 }
 

@@ -60,7 +60,9 @@ const PREFERRED_STYLE_NAMES = [
 /** Prefer these source kinds when a folder mixes several document types. */
 const SOURCE_KIND_PRIORITY: DocumentKind[] = [
   'pdf',
+  'doc',
   'docx',
+  'epub',
   'odt',
   'rtf',
   'srt',

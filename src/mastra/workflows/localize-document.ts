@@ -61,11 +61,8 @@ import {
   workspaceFileExists,
   writeWorkspaceFile,
 } from '../lib/workspace-paths';
-import {
-  convertPdfToMarkdown,
-  resolveUseRemoteOcr,
-} from '../tools/datalab-ocr-tool';
 import { readGlossaryFile, writeGlossaryFile } from '../tools/glossary-tools';
+import { convertPdfToMarkdown, resolveUseRemoteOcr } from '../tools/ocr-tools';
 import {
   convertOfficeToMarkdown,
   convertPdfToMarkdownLocal,
@@ -80,7 +77,9 @@ const documentKindSchema = z.enum([
   'text',
   'srt',
   'ass',
+  'doc',
   'docx',
+  'epub',
   'rtf',
   'odt',
 ]);
@@ -171,7 +170,7 @@ const workflowInputSchema = z.object({
     .array(z.string())
     .min(1)
     .describe(
-      'One or more documents of the same type (.md, .pdf, .txt, .json, .html, .htm, .srt, .ass, .docx, .rtf, .odt). A single file is just an array of one. All files share the glossary and style guide; terminology established in earlier files applies to later ones.',
+      'One or more documents of the same type (.md, .pdf, .txt, .json, .html, .htm, .srt, .ass, .doc, .docx, .epub, .rtf, .odt). A single file is just an array of one. All files share the glossary and style guide; terminology established in earlier files applies to later ones.',
     ),
   glossaryPath: z
     .string()
@@ -205,7 +204,7 @@ const workflowInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'Use Datalab remote OCR for PDFs. When omitted, remote OCR is used only if DATALAB_API_KEY is set; otherwise local officeparser text extraction is used. Set false to force local extraction even when a key is present.',
+      'Use remote OCR for PDFs. When omitted, remote OCR is used only if either DATALAB_API_KEY or FIRECRAWL_API_KEY is set; otherwise local @firecrawl/anydoc text extraction is used. Set false to force local extraction even when a key is present.',
     ),
   skipEditor: z
     .boolean()
@@ -404,7 +403,7 @@ const prepareRunStep = createStep({
 /**
  * Splits by bookmarks or a verified table of contents, then converts each part
  * to markdown. Uses Datalab remote OCR when `remoteOCR` is true; otherwise
- * extracts embedded text locally via officeparser (no OCR). Markdown is cached
+ * extracts embedded text locally via @firecrawl/anydoc (no OCR). Markdown is cached
  * under `ocr/` so a retry after a network failure does not re-spend Datalab
  * credits. Each result is then re-chunked under `maxPartChars` on h1/h2
  * boundaries before translation. Multiple PDFs are processed in order so later
@@ -622,14 +621,14 @@ const chunkTextPartsStep = createStep({
 });
 
 /**
- * Office documents become markdown once via officeparser, then follow the same
+ * Office documents become markdown once via @firecrawl/anydoc, then follow the same
  * heading-based chunking as native markdown. The converted markdown is cached
  * so a retry does not re-parse the binary.
  */
 const prepareOfficePartsStep = createStep({
   id: 'prepare-office-parts',
   description:
-    'Convert DOCX, RTF, or ODT documents to markdown, then split on heading boundaries.',
+    'Convert DOC, DOCX, EPUB, RTF, or ODT documents to markdown, then split on heading boundaries.',
   inputSchema: runContextSchema,
   outputSchema: partsStageSchema,
   execute: async ({ inputData: run, writer }) => {
@@ -1404,7 +1403,7 @@ const assembleOutputStep = createStep({
 export const localizeDocumentWorkflow = createWorkflow({
   id: 'localizeDocumentWorkflow',
   description:
-    'Localize one or more plain text, markdown, PDF, office (DOCX/RTF/ODT), JSON, HTML, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then optionally review the result for correctness and consistency.',
+    'Localize one or more plain text, markdown, PDF, office/ebook (DOC/DOCX/EPUB/RTF/ODT), JSON, HTML, or subtitle (SRT/ASS) documents of the same type into a target language using a shared terminology glossary, then optionally review the result for correctness and consistency.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,
 })
@@ -1412,10 +1411,7 @@ export const localizeDocumentWorkflow = createWorkflow({
   .branch([
     [async ({ inputData }) => inputData.kind === 'pdf', preparePdfPartsStep],
     [
-      async ({ inputData }) =>
-        inputData.kind === 'docx' ||
-        inputData.kind === 'rtf' ||
-        inputData.kind === 'odt',
+      async ({ inputData }) => isOfficeKind(inputData.kind),
       prepareOfficePartsStep,
     ],
     [async ({ inputData }) => inputData.kind === 'json', flattenJsonPartsStep],
